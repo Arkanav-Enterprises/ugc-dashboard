@@ -93,7 +93,7 @@ ugc-dashboard/
 | **Overview** | `/` | Today's runs, cost vs cap, total reels, daily spend chart, persona stats |
 | **Content Gallery** | `/content` | Browse generated reels with video playback, filter by persona |
 | **Pipeline Monitor** | `/pipeline` | View run history with expandable details, cost trend chart, search runs |
-| **Agent Chat** | `/chat` | Chat with Claude using skill/memory context + action buttons to trigger pipeline runs |
+| **Agent Chat** | `/chat` | Chat with Claude using skill/memory context + action buttons to trigger pipeline runs (see below) |
 | **Knowledge Base** | `/knowledge` | View and edit skill files and memory files that feed into content generation |
 | **Asset Manager** | `/assets` | Browse reference images, clips, screen recordings, and asset usage history |
 | **Logs** | `/logs` | View raw pipeline logs and run history |
@@ -112,6 +112,47 @@ The Agent Chat page has four action buttons in the left panel:
 | **Run All Personas** | ~$1.83 | Yes | Generates video clips for all 3 personas (Sanya, Sophie, Aliyah) |
 
 Costly actions (Generate Reel, Run All) show a confirmation dialog with the estimated cost before executing. All buttons show a spinner while running, disable during execution, and display the pipeline output directly in the chat when complete.
+
+---
+
+## Agent Chat — Skill & Memory Context
+
+The Agent Chat page has a **Skill Context** and **Memory** panel on the left side with checkboxes. This controls what knowledge Claude has access to when you chat.
+
+### Where the files come from
+
+The file lists are read directly from the VPS filesystem:
+
+- **Skill files** → `/root/openclaw/skills/*.md` (recursively scanned)
+- **Memory files** → `/root/openclaw/memory/*.md` (recursively scanned)
+
+These are the same skill and memory files that the pipeline's `autopilot_video.py` uses for content generation. When you edit them via the Knowledge Base page or deploy new ones with `deploy.sh`, they appear here automatically.
+
+### How context injection works
+
+1. You check the files you want Claude to reference (3 skills + 2 memory files are pre-selected by default)
+2. When you send a message, the frontend sends the selected file names along with your chat history
+3. The backend reads the full content of each selected file from disk
+4. The file contents are injected into Claude's **system prompt** as structured context:
+   ```
+   === SKILL: content-strategy.md ===
+   (full file content)
+
+   === MEMORY: post-performance.md ===
+   (full file content)
+   ```
+5. Claude responds with awareness of your content strategy, past performance data, etc.
+
+### Default selections
+
+| Type | Default files |
+|------|--------------|
+| Skills | `content-strategy.md`, `manifest-lock-knowledge.md`, `tiktok-slideshows.md` |
+| Memory | `post-performance.md`, `failure-log.md` |
+
+### Streaming
+
+Chat responses stream in real-time via SSE (Server-Sent Events). The backend calls Claude's streaming API (`claude-sonnet-4-5-20250929`) and forwards each text chunk to the frontend as it arrives. For local development, a WebSocket endpoint is also available at `/api/chat/ws`.
 
 ---
 
