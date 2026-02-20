@@ -18,6 +18,7 @@ import {
 import {
   getContextFiles,
   triggerPipelineRun,
+  getPipelineRunStatus,
   streamChat,
 } from "@/lib/api";
 import ReactMarkdown from "react-markdown";
@@ -160,25 +161,85 @@ export default function ChatPage() {
     setRunningAction(action);
     setConfirmAction(null);
 
+    // Add a placeholder message that we'll update with progress
+    const msgIndex = messages.length;
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content: `Running **${ACTION_META[action].label}**...`,
+      },
+    ]);
+
     try {
       const req = configs[action];
       const result = await triggerPipelineRun({ ...req, no_upload: true });
-      setMessages((prev) => [
-        ...prev,
-        {
+      const runId = result.id;
+
+      // Poll for completion
+      let attempts = 0;
+      const maxAttempts = 120; // 2 minutes max
+      while (attempts < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 2000));
+        attempts++;
+
+        try {
+          const status = await getPipelineRunStatus(runId);
+
+          if (status.status === "completed" || status.status === "failed") {
+            const output = status.output?.trim();
+            const success = status.status === "completed";
+
+            setMessages((prev) => {
+              const next = [...prev];
+              next[msgIndex] = {
+                role: "assistant",
+                content: success
+                  ? `**${ACTION_META[action].label}** completed:\n\n\`\`\`\n${output || "No output"}\n\`\`\``
+                  : `**${ACTION_META[action].label}** failed:\n\n\`\`\`\n${output || "No output"}\n\`\`\``,
+              };
+              return next;
+            });
+            setLastResult({ action, success });
+            setRunningAction(null);
+            return;
+          }
+
+          // Update with latest output while still running
+          if (status.output) {
+            setMessages((prev) => {
+              const next = [...prev];
+              next[msgIndex] = {
+                role: "assistant",
+                content: `Running **${ACTION_META[action].label}**...\n\n\`\`\`\n${status.output.slice(-500)}\n\`\`\``,
+              };
+              return next;
+            });
+          }
+        } catch {
+          // Polling error — keep trying
+        }
+      }
+
+      // Timed out
+      setMessages((prev) => {
+        const next = [...prev];
+        next[msgIndex] = {
           role: "assistant",
-          content: `Pipeline run started: **${result.id}** (${result.persona}, ${result.status})`,
-        },
-      ]);
+          content: `**${ACTION_META[action].label}** is still running (run ID: ${runId}). Check the Pipeline Monitor for results.`,
+        };
+        return next;
+      });
       setLastResult({ action, success: true });
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
+      setMessages((prev) => {
+        const next = [...prev];
+        next[msgIndex] = {
           role: "assistant",
-          content: `Failed to start pipeline run. Check that the backend is running.`,
-        },
-      ]);
+          content: `Failed to start **${ACTION_META[action].label}**. Check that the backend is running.`,
+        };
+        return next;
+      });
       setLastResult({ action, success: false });
     } finally {
       setRunningAction(null);
