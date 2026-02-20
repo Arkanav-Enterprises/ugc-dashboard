@@ -25,10 +25,10 @@ Vercel (Next.js frontend)
    ▼
 VPS 72.60.204.30:8000 (FastAPI backend)
    │
-   │  reads local files
+   │  reads local files + runs pipeline scripts
    ▼
 Pipeline data at /root/openclaw/
-   (logs, assets, videos, skills, memory)
+   (logs, assets, videos, skills, memory, scripts)
 ```
 
 The frontend runs on Vercel (free tier). The backend runs on the Hostinger VPS as a systemd service. The browser only talks to Vercel over HTTPS — Vercel proxies API requests to the VPS behind the scenes, avoiding mixed-content issues without needing a domain or SSL certificate on the VPS.
@@ -44,15 +44,16 @@ The repo contains only the dashboard code (not the pipeline scripts, skills, or 
 ```
 ugc-dashboard/
 ├── .gitignore
+├── DASHBOARD.md              ← This file
 └── dashboard/
     ├── backend/                ← FastAPI (runs on VPS)
     │   ├── main.py             ← App entrypoint
-    │   ├── config.py           ← Paths and env config
+    │   ├── config.py           ← Paths and env config (PIPELINE_ROOT)
     │   ├── requirements.txt    ← Python dependencies
     │   ├── models.py           ← Pydantic models
     │   ├── routers/
     │   │   ├── assets.py       ← /api/assets/* endpoints
-    │   │   ├── chat.py         ← /api/chat/* (SSE + WebSocket)
+    │   │   ├── chat.py         ← /api/chat/* (SSE streaming + WebSocket)
     │   │   ├── content.py      ← /api/content/* endpoints
     │   │   ├── knowledge.py    ← /api/knowledge/* endpoints
     │   │   ├── logs.py         ← /api/logs/* endpoints
@@ -60,17 +61,17 @@ ugc-dashboard/
     │   └── services/
     │       ├── claude_chat.py  ← Anthropic streaming chat
     │       ├── log_reader.py   ← Reads pipeline log files
-    │       ├── pipeline_runner.py ← Triggers pipeline runs
-    │       └── skill_loader.py ← Loads skill/memory files
+    │       ├── pipeline_runner.py ← Runs pipeline scripts as subprocesses
+    │       └── skill_loader.py ← Loads skill/memory files for context
     └── frontend/               ← Next.js (deployed to Vercel)
-        ├── next.config.ts      ← API proxy rewrites
+        ├── next.config.ts      ← API proxy rewrites (BACKEND_URL)
         ├── package.json
         └── src/
             ├── app/
             │   ├── page.tsx        ← Overview dashboard
             │   ├── content/        ← Content Gallery
-            │   ├── pipeline/       ← Pipeline Monitor
-            │   ├── chat/           ← Agent Chat
+            │   ├── pipeline/       ← Pipeline Monitor (read-only)
+            │   ├── chat/           ← Agent Chat + Action buttons
             │   ├── knowledge/      ← Knowledge Base editor
             │   ├── assets/         ← Asset Manager
             │   └── logs/           ← Logs viewer
@@ -91,11 +92,26 @@ ugc-dashboard/
 |------|------|-------------|
 | **Overview** | `/` | Today's runs, cost vs cap, total reels, daily spend chart, persona stats |
 | **Content Gallery** | `/content` | Browse generated reels with video playback, filter by persona |
-| **Pipeline Monitor** | `/pipeline` | Trigger pipeline runs (generate, dry-run, caption-only), view active/recent runs |
-| **Agent Chat** | `/chat` | Chat with Claude using skill/memory context, generate hooks and captions |
+| **Pipeline Monitor** | `/pipeline` | View run history with expandable details, cost trend chart, search runs |
+| **Agent Chat** | `/chat` | Chat with Claude using skill/memory context + action buttons to trigger pipeline runs |
 | **Knowledge Base** | `/knowledge` | View and edit skill files and memory files that feed into content generation |
 | **Asset Manager** | `/assets` | Browse reference images, clips, screen recordings, and asset usage history |
 | **Logs** | `/logs` | View raw pipeline logs and run history |
+
+---
+
+## Action Buttons (Agent Chat page)
+
+The Agent Chat page has four action buttons in the left panel:
+
+| Button | Cost | Confirmation? | What it does |
+|--------|------|---------------|-------------|
+| **Generate Reel** | ~$0.61 | Yes | Generates a video clip via Replicate (Veo 3.1) for Sanya and assembles a full reel |
+| **Dry Run** | Free | No | Runs the pipeline with `--dry-run` — generates text only, no video |
+| **Caption Only** | Free | No | Runs with `--dry-run --skip-gen` — generates caption text only |
+| **Run All Personas** | ~$1.83 | Yes | Generates video clips for all 3 personas (Sanya, Sophie, Aliyah) |
+
+Costly actions (Generate Reel, Run All) show a confirmation dialog with the estimated cost before executing. All buttons show a spinner while running, disable during execution, and display the pipeline output directly in the chat when complete.
 
 ---
 
@@ -103,8 +119,8 @@ ugc-dashboard/
 
 | Component | Location | Deployed via |
 |-----------|----------|-------------|
-| **Frontend** (Next.js) | Vercel | Auto-deploys on `git push` to GitHub |
-| **Backend** (FastAPI) | VPS at `/root/ugc-dashboard/` | `git pull` + restart service |
+| **Frontend** (Next.js) | Vercel | `vercel deploy --prod` or auto-deploy on push |
+| **Backend** (FastAPI) | VPS at `/root/ugc-dashboard/` | `git pull` + `systemctl restart openclaw-dashboard` |
 | **Pipeline** (scripts, skills, assets) | VPS at `/root/openclaw/` | `deploy.sh` (rsync from local) |
 | **Working copy** (everything) | Local at `~/openclaw/` | Edit here, push/deploy from here |
 
@@ -156,6 +172,20 @@ For the **Agent Chat**, the backend provides an SSE (Server-Sent Events) endpoin
 
 ---
 
+## How Pipeline Actions Work
+
+When a user clicks an action button (e.g. "Caption Only"):
+
+1. Frontend calls `POST /api/pipeline/run` with the action config
+2. Backend starts `autopilot_video.py` as a subprocess (using system `python3` or the pipeline's `.venv` if it exists)
+3. Backend returns a `run_id` immediately
+4. Frontend polls `GET /api/pipeline/run/{run_id}` every 2 seconds
+5. Backend streams stdout from the subprocess into the run's output
+6. When the subprocess finishes, status changes to `completed` or `failed`
+7. Frontend displays the full output in the chat
+
+---
+
 ## Development Workflow
 
 ### Making frontend changes
@@ -166,14 +196,16 @@ For the **Agent Chat**, the backend provides an SSE (Server-Sent Events) endpoin
 cd ~/openclaw/dashboard/frontend
 npm run dev
 
-# 3. Push to deploy (Vercel auto-builds)
+# 3. Push to GitHub
 cd ~/openclaw
 git add dashboard/frontend/
 git commit -m "description of change"
 git push
-```
 
-Vercel picks up the push and deploys automatically. Takes ~30 seconds.
+# 4. Deploy to Vercel
+cd ~/openclaw/dashboard/frontend
+vercel deploy --prod --yes --token <YOUR_TOKEN>
+```
 
 ### Making backend changes
 
@@ -184,7 +216,7 @@ cd ~/openclaw/dashboard/backend
 source .venv/bin/activate
 uvicorn main:app --reload --port 8000
 
-# 3. Push and update VPS
+# 3. Push to GitHub
 cd ~/openclaw
 git add dashboard/backend/
 git commit -m "description of change"
@@ -200,6 +232,40 @@ cd /root/ugc-dashboard && git pull && systemctl restart openclaw-dashboard
 ```bash
 # These don't go through GitHub — use the existing rsync deploy
 ./deploy.sh 72.60.204.30
+```
+
+---
+
+## VPS Initial Setup
+
+These steps were already completed. Documented here for reference if the VPS needs to be rebuilt.
+
+```bash
+# 1. Open port 8000
+ufw allow 8000
+
+# 2. Clone the dashboard repo
+cd /root
+git clone https://github.com/Arkanav-Enterprises/ugc-dashboard.git
+
+# 3. Set up the backend
+cd /root/ugc-dashboard/dashboard/backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# 4. Create the systemd service
+nano /etc/systemd/system/openclaw-dashboard.service
+# (paste the service config below, save with Ctrl+O, exit with Ctrl+X)
+
+# 5. Enable and start
+systemctl daemon-reload
+systemctl enable openclaw-dashboard
+systemctl start openclaw-dashboard
+
+# 6. Verify
+systemctl status openclaw-dashboard
+curl -s http://localhost:8000/api/health
 ```
 
 ---
@@ -230,6 +296,9 @@ systemctl stop openclaw-dashboard
 
 # Start the service
 systemctl start openclaw-dashboard
+
+# Pull latest code and restart (most common operation)
+cd /root/ugc-dashboard && git pull && systemctl restart openclaw-dashboard
 ```
 
 ### Service configuration
@@ -274,11 +343,13 @@ ufw allow 8000
 | Dashboard shows "Loading..." forever | Backend not running on VPS | SSH to VPS, run `systemctl status openclaw-dashboard` |
 | API errors in browser console | Backend crashed | `ssh root@72.60.204.30` then `systemctl restart openclaw-dashboard` |
 | Chat not streaming | SSE endpoint issue | Check `journalctl -u openclaw-dashboard -f` for errors |
-| Frontend shows old version | Vercel cache | Push an empty commit: `git commit --allow-empty -m "redeploy" && git push` |
+| Frontend shows old version | Vercel cache | Redeploy: `vercel deploy --prod --yes` from `dashboard/frontend/` |
 | Backend has old code | Forgot to pull on VPS | `cd /root/ugc-dashboard && git pull && systemctl restart openclaw-dashboard` |
 | "No data" on Overview | Pipeline hasn't run yet or PIPELINE_ROOT wrong | Check `/root/openclaw/logs/video_autopilot.jsonl` exists |
 | Port 8000 unreachable | Firewall blocking | `ufw allow 8000` on VPS |
 | ANTHROPIC_API_KEY error in chat | Key not in .env | Check `/root/openclaw/.env` has the key set |
+| Action buttons show "No such file: .venv/bin/python3" | Pipeline venv missing | Backend falls back to system `python3` — run `git pull && systemctl restart openclaw-dashboard` on VPS |
+| Action buttons fire with no confirmation | Old frontend version | Redeploy frontend — Generate Reel and Run All require confirmation now |
 
 ---
 
