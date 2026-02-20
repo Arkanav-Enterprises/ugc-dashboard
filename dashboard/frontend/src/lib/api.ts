@@ -1,8 +1,6 @@
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
-  (typeof window !== "undefined"
-    ? `${window.location.protocol}//${window.location.hostname}:8000`
-    : "http://localhost:8000");
+  (typeof window !== "undefined" ? "" : "http://localhost:8000");
 
 async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, init);
@@ -98,10 +96,71 @@ export async function getActiveRuns() {
   return fetchAPI<PipelineRunStatus[]>("/api/pipeline/runs/active");
 }
 
-export const WS_URL =
-  typeof window !== "undefined"
-    ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.hostname}:8000/api/chat/ws`
-    : "ws://localhost:8000/api/chat/ws";
+/**
+ * Stream a chat message via SSE (Server-Sent Events).
+ * Falls back to WebSocket for local development.
+ */
+export async function streamChat(
+  message: string,
+  history: { role: string; content: string }[],
+  skillFiles: string[],
+  memoryFiles: string[],
+  onChunk: (text: string) => void,
+  onDone: () => void,
+  onError: (err: string) => void
+) {
+  const res = await fetch(`${API_BASE}/api/chat/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message,
+      history,
+      skill_files: skillFiles,
+      memory_files: memoryFiles,
+    }),
+  });
+
+  if (!res.ok) {
+    onError(`API error: ${res.status}`);
+    return;
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) {
+    onError("No response body");
+    return;
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        const data = line.slice(6);
+        if (data === "[DONE]") {
+          onDone();
+          return;
+        }
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.type === "chunk") onChunk(parsed.content);
+          else if (parsed.type === "error") onError(parsed.content);
+        } catch {
+          // skip malformed lines
+        }
+      }
+    }
+  }
+  onDone();
+}
 
 // Types
 export interface OverviewStats {

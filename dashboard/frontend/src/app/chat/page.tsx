@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   getContextFiles,
   triggerPipelineRun,
-  WS_URL,
+  streamChat,
 } from "@/lib/api";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -35,7 +35,6 @@ export default function ChatPage() {
     "post-performance.md",
     "failure-log.md",
   ]);
-  const wsRef = useRef<WebSocket | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -49,13 +48,6 @@ export default function ChatPage() {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const connectWs = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return wsRef.current;
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
-    return ws;
-  }, []);
-
   const sendMessage = async () => {
     if (!input.trim() || streaming) return;
 
@@ -64,30 +56,21 @@ export default function ChatPage() {
     setInput("");
     setStreaming(true);
 
-    const ws = connectWs();
     const history = messages.map((m) => ({
       role: m.role,
       content: m.content,
     }));
 
-    const onOpen = () => {
-      ws.send(
-        JSON.stringify({
-          message: userMsg.content,
-          history,
-          skill_files: selectedSkills,
-          memory_files: selectedMemory,
-        })
-      );
-    };
-
     let assistantContent = "";
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
-    const onMessage = (event: MessageEvent) => {
-      const data = JSON.parse(event.data);
-      if (data.type === "chunk") {
-        assistantContent += data.content;
+    await streamChat(
+      userMsg.content,
+      history,
+      selectedSkills,
+      selectedMemory,
+      (chunk) => {
+        assistantContent += chunk;
         setMessages((prev) => {
           const next = [...prev];
           next[next.length - 1] = {
@@ -96,19 +79,21 @@ export default function ChatPage() {
           };
           return next;
         });
-      } else if (data.type === "done" || data.type === "error") {
+      },
+      () => setStreaming(false),
+      (err) => {
+        assistantContent += `\n\nError: ${err}`;
+        setMessages((prev) => {
+          const next = [...prev];
+          next[next.length - 1] = {
+            role: "assistant",
+            content: assistantContent,
+          };
+          return next;
+        });
         setStreaming(false);
-        ws.removeEventListener("message", onMessage);
       }
-    };
-
-    ws.addEventListener("message", onMessage);
-
-    if (ws.readyState === WebSocket.OPEN) {
-      onOpen();
-    } else {
-      ws.addEventListener("open", onOpen, { once: true });
-    }
+    );
   };
 
   const handleAction = async (
