@@ -7,13 +7,56 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
   getContextFiles,
   triggerPipelineRun,
   streamChat,
 } from "@/lib/api";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Send, Loader2, Play, Eye, FileText, Zap } from "lucide-react";
+import { Send, Loader2, Play, Eye, FileText, Zap, AlertTriangle, CheckCircle2 } from "lucide-react";
+
+type Action = "generate" | "dry-run" | "caption-only" | "run-all";
+
+const ACTION_META: Record<Action, {
+  label: string;
+  cost: string | null;
+  description: string;
+  needsConfirm: boolean;
+}> = {
+  generate: {
+    label: "Generate Reel",
+    cost: "~$0.61",
+    description: "This will generate a video clip via Replicate (Veo 3.1) for Sanya and assemble a full reel.",
+    needsConfirm: true,
+  },
+  "run-all": {
+    label: "Run All Personas",
+    cost: "~$1.83",
+    description: "This will generate video clips for all 3 personas (Sanya, Sophie, Aliyah) — 3 Replicate calls.",
+    needsConfirm: true,
+  },
+  "dry-run": {
+    label: "Dry Run",
+    cost: null,
+    description: "Text generation only, no video.",
+    needsConfirm: false,
+  },
+  "caption-only": {
+    label: "Caption Only",
+    cost: null,
+    description: "Generate caption text only.",
+    needsConfirm: false,
+  },
+};
 
 interface Message {
   role: "user" | "assistant";
@@ -35,6 +78,9 @@ export default function ChatPage() {
     "post-performance.md",
     "failure-log.md",
   ]);
+  const [confirmAction, setConfirmAction] = useState<Action | null>(null);
+  const [runningAction, setRunningAction] = useState<Action | null>(null);
+  const [lastResult, setLastResult] = useState<{ action: Action; success: boolean } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,6 +93,13 @@ export default function ChatPage() {
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Clear success indicator after 3 seconds
+  useEffect(() => {
+    if (!lastResult) return;
+    const t = setTimeout(() => setLastResult(null), 3000);
+    return () => clearTimeout(t);
+  }, [lastResult]);
 
   const sendMessage = async () => {
     if (!input.trim() || streaming) return;
@@ -96,27 +149,49 @@ export default function ChatPage() {
     );
   };
 
-  const handleAction = async (
-    action: "generate" | "dry-run" | "caption-only" | "run-all"
-  ) => {
-    const configs: Record<string, { persona: string; dry_run?: boolean; skip_gen?: boolean }> = {
+  const executeAction = async (action: Action) => {
+    const configs: Record<Action, { persona: string; dry_run?: boolean; skip_gen?: boolean }> = {
       generate: { persona: "sanya" },
       "dry-run": { persona: "sanya", dry_run: true },
       "caption-only": { persona: "sanya", dry_run: true, skip_gen: true },
       "run-all": { persona: "all" },
     };
-    const req = configs[action];
-    const result = await triggerPipelineRun({
-      ...req,
-      no_upload: true,
-    });
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "assistant",
-        content: `Pipeline run started: **${result.id}** (${result.persona}, ${result.status})`,
-      },
-    ]);
+
+    setRunningAction(action);
+    setConfirmAction(null);
+
+    try {
+      const req = configs[action];
+      const result = await triggerPipelineRun({ ...req, no_upload: true });
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Pipeline run started: **${result.id}** (${result.persona}, ${result.status})`,
+        },
+      ]);
+      setLastResult({ action, success: true });
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Failed to start pipeline run. Check that the backend is running.`,
+        },
+      ]);
+      setLastResult({ action, success: false });
+    } finally {
+      setRunningAction(null);
+    }
+  };
+
+  const handleAction = (action: Action) => {
+    if (runningAction) return;
+    if (ACTION_META[action].needsConfirm) {
+      setConfirmAction(action);
+    } else {
+      executeAction(action);
+    }
   };
 
   const toggleFile = (
@@ -129,8 +204,70 @@ export default function ChatPage() {
     );
   };
 
+  const actionButton = (action: Action, icon: React.ReactNode, variant: "default" | "outline" = "outline") => {
+    const meta = ACTION_META[action];
+    const isRunning = runningAction === action;
+    const justSucceeded = lastResult?.action === action && lastResult.success;
+
+    return (
+      <Button
+        size="sm"
+        variant={variant}
+        className="w-full justify-start"
+        disabled={!!runningAction}
+        onClick={() => handleAction(action)}
+      >
+        {isRunning ? (
+          <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+        ) : justSucceeded ? (
+          <CheckCircle2 className="h-3 w-3 mr-2 text-green-500" />
+        ) : (
+          <span className="mr-2">{icon}</span>
+        )}
+        {isRunning ? "Running..." : meta.label}
+        {meta.cost && (
+          <span className="ml-auto text-xs text-muted-foreground">{meta.cost}</span>
+        )}
+      </Button>
+    );
+  };
+
   return (
     <div className="flex gap-4 h-[calc(100vh-4rem)]">
+      {/* Confirmation dialog for costly actions */}
+      <Dialog open={!!confirmAction} onOpenChange={(open) => !open && setConfirmAction(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Confirm: {confirmAction && ACTION_META[confirmAction].label}
+            </DialogTitle>
+            <DialogDescription>
+              {confirmAction && ACTION_META[confirmAction].description}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md bg-amber-500/10 border border-amber-500/20 p-3">
+            <p className="text-sm font-medium">
+              Estimated cost: {confirmAction && ACTION_META[confirmAction].cost}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              This will use Replicate API credits. The cost is charged immediately.
+            </p>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button
+              variant="destructive"
+              onClick={() => confirmAction && executeAction(confirmAction)}
+            >
+              Yes, run it
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Left panel — actions + context */}
       <div className="w-64 shrink-0 space-y-4 overflow-auto">
         <Card>
@@ -138,37 +275,10 @@ export default function ChatPage() {
             <CardTitle className="text-sm font-medium">Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Button
-              size="sm"
-              className="w-full justify-start"
-              onClick={() => handleAction("generate")}
-            >
-              <Play className="h-3 w-3 mr-2" /> Generate Reel
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => handleAction("dry-run")}
-            >
-              <Eye className="h-3 w-3 mr-2" /> Dry Run
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => handleAction("caption-only")}
-            >
-              <FileText className="h-3 w-3 mr-2" /> Caption Only
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => handleAction("run-all")}
-            >
-              <Zap className="h-3 w-3 mr-2" /> Run All
-            </Button>
+            {actionButton("generate", <Play className="h-3 w-3" />, "default")}
+            {actionButton("dry-run", <Eye className="h-3 w-3" />)}
+            {actionButton("caption-only", <FileText className="h-3 w-3" />)}
+            {actionButton("run-all", <Zap className="h-3 w-3" />)}
           </CardContent>
         </Card>
 
