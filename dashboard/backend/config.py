@@ -5,8 +5,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Project root is two levels up from dashboard/backend/
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+# Pipeline root — override with PIPELINE_ROOT env var, otherwise
+# assume the pipeline lives two levels up (works for local dev where
+# the dashboard lives inside the openclaw project).
+PROJECT_ROOT = Path(os.environ.get("PIPELINE_ROOT", Path(__file__).resolve().parent.parent.parent))
 load_dotenv(PROJECT_ROOT / ".env", override=True)
 
 LOGS_DIR = PROJECT_ROOT / "logs"
