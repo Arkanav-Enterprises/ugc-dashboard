@@ -22,7 +22,10 @@ REF_IMAGES_DIR = ASSETS_DIR / "reference-images"
 JSONL_PATH = LOGS_DIR / "video_autopilot.jsonl"
 DAILY_SPEND_PATH = LOGS_DIR / "daily_spend.json"
 
-PROJECT_VENV_PYTHON = PROJECT_ROOT / ".venv" / "bin" / "python3"
+import shutil
+
+_venv_python = PROJECT_ROOT / ".venv" / "bin" / "python3"
+PROJECT_VENV_PYTHON = _venv_python if _venv_python.exists() else Path(shutil.which("python3") or "python3")
 DAILY_COST_CAP = float(os.environ.get("DAILY_COST_CAP", "5.00"))
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
