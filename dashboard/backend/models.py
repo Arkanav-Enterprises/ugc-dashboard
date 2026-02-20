@@ -1,0 +1,78 @@
+"""Pydantic models for API responses."""
+
+from pydantic import BaseModel
+from typing import Optional
+
+
+class PipelineRun(BaseModel):
+    timestamp: str
+    persona: str
+    video_type: Optional[str] = None
+    hook_text: str
+    reaction_text: str
+    caption: str = ""
+    content_angle: str = ""
+    reel_path: Optional[str] = None
+    cost_usd: Optional[float] = None
+
+
+class OverviewStats(BaseModel):
+    today_runs: int
+    today_cost: float
+    daily_cap: float
+    total_reels: int
+    total_spend: float
+
+
+class DailySpend(BaseModel):
+    date: str
+    amount: float
+
+
+class PersonaStats(BaseModel):
+    persona: str
+    color: str
+    last_run: Optional[str] = None
+    total_runs: int
+    hook_clips: int
+    reaction_clips: int
+
+
+class SkillFile(BaseModel):
+    path: str
+    name: str
+    is_dir: bool
+    children: Optional[list["SkillFile"]] = None
+
+
+class FileContent(BaseModel):
+    path: str
+    content: str
+
+
+class AssetInfo(BaseModel):
+    name: str
+    path: str
+    persona: Optional[str] = None
+    type: Optional[str] = None
+
+
+class PipelineRunRequest(BaseModel):
+    persona: str = "sanya"
+    video_type: Optional[str] = None
+    dry_run: bool = False
+    no_upload: bool = True
+    skip_gen: bool = False
+
+
+class PipelineRunStatus(BaseModel):
+    id: str
+    status: str  # running, completed, failed
+    persona: str
+    started_at: str
+    output: str = ""
+
+
+class ChatMessage(BaseModel):
+    role: str  # user, assistant
+    content: str

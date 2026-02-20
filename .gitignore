@@ -1,0 +1,31 @@
+# Secrets
+.env
+
+# Generated output
+output/
+logs/
+video_output/
+
+# Large assets (sync separately)
+assets/app-screenshots/
+assets/demo-recordings/
+assets/splash.mp4
+assets/cta-images/
+assets/sanya/
+assets/sophie/
+assets/aliyah/
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Vercel
+.vercel/
+
+# OS
+.DS_Store
+Thumbs.db
