@@ -71,19 +71,24 @@ def _parse_posts_from_text(raw: str) -> list[XPost]:
 def _parse_posts_json(raw: str) -> list[XPost]:
     """Try to parse bird's JSON output into XPost list."""
     data = json.loads(raw)
-    items = data if isinstance(data, list) else data.get("posts", data.get("results", [data]))
+    # bird outputs a plain array normally, or {"tweets": [...]} when paginated
+    items = data if isinstance(data, list) else data.get("tweets", data.get("posts", data.get("results", [data])))
     posts = []
     for item in items:
         if not isinstance(item, dict):
             continue
+        author = item.get("author", {})
+        username = author.get("username", item.get("handle", item.get("username", "")))
+        tweet_id = item.get("id", "")
+        url = f"https://x.com/{username}/status/{tweet_id}" if username and tweet_id else item.get("url", "")
         posts.append(XPost(
-            handle=item.get("author", {}).get("handle", item.get("handle", item.get("username", ""))),
+            handle=username,
             text=item.get("text", item.get("content", "")),
-            likes=int(item.get("likes", item.get("like_count", 0))),
-            retweets=int(item.get("retweets", item.get("retweet_count", 0))),
-            replies=int(item.get("replies", item.get("reply_count", 0))),
-            url=item.get("url", item.get("link", "")),
-            created_at=item.get("created_at", item.get("date", "")),
+            likes=int(item.get("likeCount", item.get("likes", item.get("like_count", 0))) or 0),
+            retweets=int(item.get("retweetCount", item.get("retweets", item.get("retweet_count", 0))) or 0),
+            replies=int(item.get("replyCount", item.get("replies", item.get("reply_count", 0))) or 0),
+            url=url,
+            created_at=item.get("createdAt", item.get("created_at", item.get("date", ""))),
         ))
     return posts
 
