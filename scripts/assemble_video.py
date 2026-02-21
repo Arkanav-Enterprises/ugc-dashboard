@@ -23,13 +23,13 @@ GDRIVE_FOLDER = "manifest-social-videos"
 
 WIDTH, HEIGHT, FPS = 1080, 1920, 30
 BITRATE = "8000k"
-FONT_SIZE = 64
+FONT_SIZE = 56
 TEXT_Y_RATIO = 0.75  # lower third
-MAX_TEXT_WIDTH_RATIO = 0.85
+HORIZONTAL_PAD = 60  # pixels of padding on each side
 STROKE_WIDTH = 3
 
-# Chars per line at 64px on 1080w with 85% max width
-CHARS_PER_LINE = 40
+# Chars per line at 56px on 1080w with ~60px padding each side
+CHARS_PER_LINE = 32
 
 
 # ─── Font resolution ─────────────────────────────────
@@ -127,7 +127,7 @@ def build_drawtext_filter(text, font_path):
             f":fontcolor=white"
             f":borderw={STROKE_WIDTH}"
             f":bordercolor=black"
-            f":x=(w-text_w)/2"
+            f":x=max({HORIZONTAL_PAD}\\,(w-text_w)/2)"
             f":y={y}"
         )
         filters.append(f)
