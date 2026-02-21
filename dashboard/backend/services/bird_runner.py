@@ -27,25 +27,21 @@ def _get_twscrape_api():
     if _twscrape_api is not None:
         return _twscrape_api
 
-    from twscrape import API, AccountsPool
+    from twscrape import API
 
     _twscrape_api = API(str(TWSCRAPE_DB))
 
     if BIRD_AUTH_TOKEN and BIRD_CT0:
         async def _add():
-            pool: AccountsPool = _twscrape_api.pool
-            # Only add if no accounts exist yet
-            existing = await pool.accounts_info()
-            if not existing:
-                cookies = f"auth_token={BIRD_AUTH_TOKEN}; ct0={BIRD_CT0}"
-                await pool.add_account(
-                    username="main",
-                    password="",
-                    email="",
-                    email_password="",
+            cookies = f"auth_token={BIRD_AUTH_TOKEN}; ct0={BIRD_CT0}"
+            try:
+                await _twscrape_api.pool.add_account(
+                    "main", "", "", "",
                     cookies=cookies,
                 )
-                await pool.set_active("main")
+            except Exception:
+                # Account already exists — that's fine
+                pass
         asyncio.run(_add())
 
     return _twscrape_api
@@ -53,14 +49,13 @@ def _get_twscrape_api():
 
 def _tweet_to_xpost(tweet) -> XPost:
     """Map a twscrape Tweet object to our XPost model."""
-    url = f"https://x.com/{tweet.user.username}/status/{tweet.id}" if tweet.user else ""
     return XPost(
         handle=tweet.user.username if tweet.user else "",
         text=tweet.rawContent,
         likes=tweet.likeCount or 0,
         retweets=tweet.retweetCount or 0,
         replies=tweet.replyCount or 0,
-        url=url,
+        url=tweet.url or "",
         created_at=tweet.date.isoformat() if tweet.date else "",
     )
 
