@@ -91,17 +91,17 @@ def fetch_transcript(video_id: str) -> str | None:
             "--write-sub",
             "--sub-lang", "en",
             "--skip-download",
-            "--sub-format", "vtt",
+            "--convert-subs", "vtt",
             "-o", f"{tmpdir}/%(id)s.%(ext)s",
             f"https://www.youtube.com/watch?v={video_id}",
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
 
-        if result.returncode != 0:
-            return None
-
-        # Find the subtitle file
+        # Find subtitle files — check both .vtt and any other sub format
         sub_files = list(Path(tmpdir).glob("*.vtt"))
+        if not sub_files:
+            # Fallback: try any subtitle file that was downloaded
+            sub_files = list(Path(tmpdir).glob("*.en.*"))
         if not sub_files:
             return None
 
