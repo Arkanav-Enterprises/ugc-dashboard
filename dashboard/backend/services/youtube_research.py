@@ -14,7 +14,7 @@ from typing import AsyncGenerator
 
 import anthropic
 
-from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL, RESEARCH_OUTPUT_DIR
+from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL, RESEARCH_OUTPUT_DIR, PROJECT_ROOT
 
 
 def _yt_dlp_bin() -> str:
@@ -26,6 +26,14 @@ def _yt_dlp_bin() -> str:
     if system_bin:
         return system_bin
     raise FileNotFoundError("yt-dlp not installed")
+
+
+def _cookies_args() -> list[str]:
+    """Return --cookies arg if yt-cookies.txt exists in project root."""
+    cookies_path = PROJECT_ROOT / "yt-cookies.txt"
+    if cookies_path.exists():
+        return ["--cookies", str(cookies_path)]
+    return []
 
 
 # ─── Channel scanning ────────────────────────────────
@@ -40,6 +48,7 @@ def scan_channel(url: str, max_videos: int = 20) -> dict:
 
     cmd = [
         _yt_dlp_bin(),
+        *_cookies_args(),
         "--flat-playlist",
         "--dump-json",
         "--playlist-end", str(max_videos),
@@ -87,6 +96,7 @@ def fetch_transcript(video_id: str) -> str | None:
     with tempfile.TemporaryDirectory() as tmpdir:
         cmd = [
             _yt_dlp_bin(),
+            *_cookies_args(),
             "--write-auto-sub",
             "--write-sub",
             "--sub-lang", "en",
