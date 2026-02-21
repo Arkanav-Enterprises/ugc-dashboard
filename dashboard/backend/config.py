@@ -32,6 +32,8 @@ BIRD_CLI = Path(shutil.which("bird") or os.environ.get("BIRD_CLI", "/usr/local/b
 BIRD_AUTH_TOKEN = os.environ.get("BIRD_AUTH_TOKEN", "")
 BIRD_CT0 = os.environ.get("BIRD_CT0", "")
 
+TWSCRAPE_DB = PROJECT_ROOT / "dashboard" / "backend" / "twscrape_accounts.db"
+
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
 

@@ -1,16 +1,73 @@
-"""Subprocess wrapper for the bird CLI (@steipete/bird) — read-only X/Twitter research."""
+"""X/Twitter research — twscrape for search/user-tweets, bird CLI for trending."""
 
+import asyncio
 import json
 import subprocess
 from datetime import date
 
 import os
 
-from config import BIRD_CLI, BIRD_AUTH_TOKEN, BIRD_CT0, MEMORY_DIR
+from config import (
+    BIRD_CLI, BIRD_AUTH_TOKEN, BIRD_CT0, MEMORY_DIR, TWSCRAPE_DB,
+)
 from models import ResearchResult, SaveInsightRequest, XPost, XTrend
 
 X_TRENDS_PATH = MEMORY_DIR / "x-trends.md"
 
+# ---------------------------------------------------------------------------
+# twscrape helpers
+# ---------------------------------------------------------------------------
+
+_twscrape_api = None
+
+
+def _get_twscrape_api():
+    """Return a reusable twscrape API instance, adding the account on first call."""
+    global _twscrape_api
+    if _twscrape_api is not None:
+        return _twscrape_api
+
+    from twscrape import API, AccountsPool
+
+    _twscrape_api = API(str(TWSCRAPE_DB))
+
+    if BIRD_AUTH_TOKEN and BIRD_CT0:
+        async def _add():
+            pool: AccountsPool = _twscrape_api.pool
+            # Only add if no accounts exist yet
+            existing = await pool.accounts_info()
+            if not existing:
+                cookies = f"auth_token={BIRD_AUTH_TOKEN}; ct0={BIRD_CT0}"
+                await pool.add_account(
+                    username="main",
+                    password="",
+                    email="",
+                    email_password="",
+                    cookies=cookies,
+                )
+                await pool.set_active("main")
+        asyncio.run(_add())
+
+    return _twscrape_api
+
+
+def _tweet_to_xpost(tweet) -> XPost:
+    """Map a twscrape Tweet object to our XPost model."""
+    url = f"https://x.com/{tweet.user.username}/status/{tweet.id}" if tweet.user else ""
+    return XPost(
+        handle=tweet.user.username if tweet.user else "",
+        text=tweet.rawContent,
+        likes=tweet.likeCount or 0,
+        retweets=tweet.retweetCount or 0,
+        replies=tweet.replyCount or 0,
+        url=url,
+        created_at=tweet.date.isoformat() if tweet.date else "",
+    )
+
+
+# ---------------------------------------------------------------------------
+# bird CLI helpers (kept for trending)
+# ---------------------------------------------------------------------------
 
 def check_bird_available() -> dict:
     """Return {"available": True/False, "version": ...}."""
@@ -46,122 +103,52 @@ def _run_bird(args: list[str]) -> tuple[str, str]:
     return proc.stdout, proc.stderr
 
 
-def _parse_posts_from_text(raw: str) -> list[XPost]:
-    """Parse bird's text output format into XPost list.
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
-    Bird text format per post:
-        @handle (display name):
-        Tweet text (one or more lines)
-        🖼️ media url (optional)
-        ┌─ QT @user: ... └─ url (optional quoted tweet block)
-        📅 date
-        🔗 tweet url
-        ──────────────── (separator)
-    """
-    import re
-    posts: list[XPost] = []
-    blocks = re.split(r"─{10,}", raw)
-    for block in blocks:
-        block = block.strip()
-        if not block:
-            continue
-        lines = block.splitlines()
-        handle = ""
-        text_lines: list[str] = []
-        url = ""
-        created_at = ""
-        in_qt = False
-
-        for line in lines:
-            s = line.strip()
-            if not s:
-                continue
-            # Quoted tweet block — skip entirely
-            if s.startswith("\u250c\u2500") or s.startswith("\u2502") or s.startswith("\u2514\u2500"):
-                in_qt = s.startswith("\u250c\u2500")
-                if s.startswith("\u2514\u2500"):
-                    in_qt = False
-                continue
-            # Handle line: @user (display name):
-            if s.startswith("@") and not handle:
-                m = re.match(r"@(\w+)", s)
-                if m:
-                    handle = m.group(1)
-                continue
-            # Date line
-            if "\U0001f4c5" in s:  # 📅
-                created_at = re.sub(r"^\U0001f4c5\s*", "", s).strip()
-                continue
-            # URL line
-            if "\U0001f517" in s:  # 🔗
-                url = re.sub(r"^\U0001f517\s*", "", s).strip()
-                continue
-            # Skip media lines
-            if s.startswith("\U0001f5bc") or s.startswith("\U0001f504"):  # 🖼️ 🔄
-                continue
-            # Regular text
-            text_lines.append(s)
-
-        text = " ".join(text_lines).strip()
-        if text or handle:
-            posts.append(XPost(handle=handle, text=text, url=url, created_at=created_at))
-    return posts
-
-
-def _parse_posts_json(raw: str) -> list[XPost]:
-    """Try to parse bird's JSON output into XPost list."""
-    data = json.loads(raw)
-    # bird outputs a plain array normally, or {"tweets": [...]} when paginated
-    items = data if isinstance(data, list) else data.get("tweets", data.get("posts", data.get("results", [data])))
-    posts = []
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        author = item.get("author", {})
-        username = author.get("username", item.get("handle", item.get("username", "")))
-        tweet_id = item.get("id", "")
-        url = f"https://x.com/{username}/status/{tweet_id}" if username and tweet_id else item.get("url", "")
-        posts.append(XPost(
-            handle=username,
-            text=item.get("text", item.get("content", "")),
-            likes=int(item.get("likeCount", item.get("likes", item.get("like_count", 0))) or 0),
-            retweets=int(item.get("retweetCount", item.get("retweets", item.get("retweet_count", 0))) or 0),
-            replies=int(item.get("replyCount", item.get("replies", item.get("reply_count", 0))) or 0),
-            url=url,
-            created_at=item.get("createdAt", item.get("created_at", item.get("date", ""))),
-        ))
-    return posts
-
-
-def search_posts(query: str, count: int = 10, min_faves: int = 0) -> ResearchResult:
-    """Search X posts by keyword, optionally filtering by minimum likes."""
-    full_query = f"{query} min_faves:{min_faves}" if min_faves > 0 else query
+def search_posts(query: str, count: int = 10) -> ResearchResult:
+    """Search X posts by keyword using twscrape."""
     try:
-        raw, _ = _run_bird(["search", full_query, "--count", str(count)])
+        api = _get_twscrape_api()
+
+        async def _search():
+            results = []
+            async for tweet in api.search(query, limit=count):
+                results.append(_tweet_to_xpost(tweet))
+            return results
+
+        posts = asyncio.run(_search())
+        # Sort by total engagement descending
+        posts.sort(key=lambda p: p.likes + p.retweets + p.replies, reverse=True)
+        return ResearchResult(posts=posts)
     except Exception as e:
         return ResearchResult(error=str(e))
-
-    posts = _parse_posts_from_text(raw)
-    return ResearchResult(posts=posts, raw_output=raw, min_faves=min_faves)
 
 
 def get_user_tweets(handle: str, count: int = 10) -> ResearchResult:
-    """Get recent posts from a specific user."""
+    """Get recent posts from a specific user using twscrape."""
     handle = handle.lstrip("@")
     try:
-        raw, _ = _run_bird(["user", handle, "--count", str(count)])
+        api = _get_twscrape_api()
+
+        async def _fetch():
+            user = await api.user_by_login(handle)
+            if not user:
+                raise RuntimeError(f"User @{handle} not found")
+            results = []
+            async for tweet in api.user_tweets(user.id, limit=count):
+                results.append(_tweet_to_xpost(tweet))
+            return results
+
+        posts = asyncio.run(_fetch())
+        return ResearchResult(posts=posts)
     except Exception as e:
         return ResearchResult(error=str(e))
 
-    try:
-        posts = _parse_posts_json(raw)
-    except (json.JSONDecodeError, Exception):
-        posts = _parse_posts_from_text(raw)
-    return ResearchResult(posts=posts, raw_output=raw)
-
 
 def get_trending() -> ResearchResult:
-    """Get current trending topics."""
+    """Get current trending topics (via bird CLI)."""
     try:
         raw, _ = _run_bird(["trending"])
     except Exception as e:

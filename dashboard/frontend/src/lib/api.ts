@@ -258,7 +258,6 @@ export interface ResearchResult {
   trends: XTrend[];
   raw_output: string;
   error: string;
-  min_faves: number;
 }
 
 // --- X Research API functions ---
@@ -267,11 +266,11 @@ export async function getResearchStatus() {
   return fetchAPI<{ available: boolean; version: string }>("/api/research/status");
 }
 
-export async function searchPosts(query: string, count: number = 10, min_faves: number = 0) {
+export async function searchPosts(query: string, count: number = 10) {
   return fetchAPI<ResearchResult>("/api/research/search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, count, min_faves }),
+    body: JSON.stringify({ query, count }),
   });
 }
 
