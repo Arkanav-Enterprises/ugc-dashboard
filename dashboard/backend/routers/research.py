@@ -17,7 +17,7 @@ def status():
 @router.post("/search")
 def search(req: ResearchRequest):
     """Search X posts by keyword."""
-    return search_posts(req.query, req.count)
+    return search_posts(req.query, req.count, req.min_faves)
 
 
 @router.post("/user-tweets")

@@ -99,6 +99,7 @@ class ResearchRequest(BaseModel):
     query: str = ""
     handle: str = ""
     count: int = 10
+    min_faves: int = 0
 
 
 class ResearchResult(BaseModel):

@@ -266,11 +266,11 @@ export async function getResearchStatus() {
   return fetchAPI<{ available: boolean; version: string }>("/api/research/status");
 }
 
-export async function searchPosts(query: string, count: number = 10) {
+export async function searchPosts(query: string, count: number = 10, min_faves: number = 0) {
   return fetchAPI<ResearchResult>("/api/research/search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, count }),
+    body: JSON.stringify({ query, count, min_faves }),
   });
 }
 

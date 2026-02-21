@@ -124,6 +124,7 @@ function PostCard({
 }
 
 const COUNT_OPTIONS = [5, 10, 20, 50];
+const MIN_FAVES_OPTIONS = [0, 50, 100, 500, 1000, 5000];
 
 export default function ResearchPage() {
   const [birdAvailable, setBirdAvailable] = useState<boolean | null>(null);
@@ -131,6 +132,7 @@ export default function ResearchPage() {
   // Discover tab
   const [searchQuery, setSearchQuery] = useState("");
   const [searchCount, setSearchCount] = useState(10);
+  const [minFaves, setMinFaves] = useState(100);
   const [searchResult, setSearchResult] = useState<ResearchResult | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [trends, setTrends] = useState<XTrend[]>([]);
@@ -194,14 +196,14 @@ export default function ResearchPage() {
     if (!q) return;
     setSearchLoading(true);
     try {
-      const res = await searchPosts(q, searchCount);
+      const res = await searchPosts(q, searchCount, minFaves);
       setSearchResult(res);
     } catch {
       setSearchResult({ posts: [], trends: [], raw_output: "", error: "Request failed" });
     } finally {
       setSearchLoading(false);
     }
-  }, [searchQuery, searchCount]);
+  }, [searchQuery, searchCount, minFaves]);
 
   // When pendingSearchRef is set and searchQuery updates, trigger search
   useEffect(() => {
@@ -336,6 +338,15 @@ export default function ResearchPage() {
             >
               {COUNT_OPTIONS.map((n) => (
                 <option key={n} value={n}>{n} results</option>
+              ))}
+            </select>
+            <select
+              value={minFaves}
+              onChange={(e) => setMinFaves(Number(e.target.value))}
+              className="h-9 rounded-md border bg-background px-3 text-sm"
+            >
+              {MIN_FAVES_OPTIONS.map((n) => (
+                <option key={n} value={n}>{n === 0 ? "Any likes" : `${n}+ likes`}</option>
               ))}
             </select>
             <Button onClick={() => handleSearch()} disabled={searchLoading || !searchQuery.trim()}>

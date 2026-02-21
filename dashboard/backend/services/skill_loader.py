@@ -3,14 +3,17 @@
 from config import SKILLS_DIR, MEMORY_DIR
 
 DEFAULT_SKILL_FILES = [
-    "content-strategy.md",
-    "manifest-lock-knowledge.md",
-    "tiktok-slideshows.md",
+    "INDEX.md",
+    "manifest-lock.md",
+    "content/content-mix.md",
+    "content/hook-architecture.md",
+    "content/what-never-works.md",
 ]
 
 DEFAULT_MEMORY_FILES = [
     "post-performance.md",
     "failure-log.md",
+    "x-trends.md",
 ]
 
 

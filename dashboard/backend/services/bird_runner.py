@@ -88,10 +88,11 @@ def _parse_posts_json(raw: str) -> list[XPost]:
     return posts
 
 
-def search_posts(query: str, count: int = 10) -> ResearchResult:
-    """Search X posts by keyword."""
+def search_posts(query: str, count: int = 10, min_faves: int = 0) -> ResearchResult:
+    """Search X posts by keyword, optionally filtering by minimum likes."""
+    full_query = f"{query} min_faves:{min_faves}" if min_faves > 0 else query
     try:
-        raw, _ = _run_bird(["search", query, "--count", str(count)])
+        raw, _ = _run_bird(["search", full_query, "--count", str(count), "--json"])
     except Exception as e:
         return ResearchResult(error=str(e))
 

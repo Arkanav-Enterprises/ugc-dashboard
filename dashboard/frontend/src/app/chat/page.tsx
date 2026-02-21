@@ -71,13 +71,16 @@ export default function ChatPage() {
   const [skillFiles, setSkillFiles] = useState<string[]>([]);
   const [memoryFiles, setMemoryFiles] = useState<string[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([
-    "content-strategy.md",
-    "manifest-lock-knowledge.md",
-    "tiktok-slideshows.md",
+    "INDEX.md",
+    "manifest-lock.md",
+    "content/content-mix.md",
+    "content/hook-architecture.md",
+    "content/what-never-works.md",
   ]);
   const [selectedMemory, setSelectedMemory] = useState<string[]>([
     "post-performance.md",
     "failure-log.md",
+    "x-trends.md",
   ]);
   const [confirmAction, setConfirmAction] = useState<Action | null>(null);
   const [runningAction, setRunningAction] = useState<Action | null>(null);
