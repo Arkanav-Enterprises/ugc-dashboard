@@ -61,7 +61,7 @@ class PipelineRunRequest(BaseModel):
     persona: str = "sanya"
     video_type: Optional[str] = None
     dry_run: bool = False
-    no_upload: bool = True
+    no_upload: bool = False
     skip_gen: bool = False
 
 
