@@ -1,9 +1,12 @@
-"""X/Twitter research endpoints — wraps the bird CLI."""
+"""X/Twitter research endpoints — twscrape for search/user-tweets, bird CLI for trending."""
 
 from fastapi import APIRouter
 
 from models import ResearchRequest, SaveInsightRequest
-from services.bird_runner import check_bird_available, search_posts, get_user_tweets, get_trending, save_insight
+from services.bird_runner import (
+    check_bird_available, search_posts, get_user_tweets,
+    get_trending, save_insight, get_twscrape_debug,
+)
 
 router = APIRouter(prefix="/api/research", tags=["research"])
 
@@ -12,6 +15,12 @@ router = APIRouter(prefix="/api/research", tags=["research"])
 def status():
     """Check if the bird CLI is available."""
     return check_bird_available()
+
+
+@router.get("/debug")
+def debug():
+    """Return diagnostic info about twscrape installation and account status."""
+    return get_twscrape_debug()
 
 
 @router.post("/search")

@@ -2,8 +2,11 @@
 
 import asyncio
 import json
+import logging
 import subprocess
+import traceback
 from datetime import date
+from pathlib import Path
 
 import os
 
@@ -11,6 +14,8 @@ from config import (
     BIRD_CLI, BIRD_AUTH_TOKEN, BIRD_CT0, MEMORY_DIR, TWSCRAPE_DB,
 )
 from models import ResearchResult, SaveInsightRequest, XPost, XTrend
+
+logger = logging.getLogger("bird_runner")
 
 X_TRENDS_PATH = MEMORY_DIR / "x-trends.md"
 
@@ -27,13 +32,11 @@ def _get_twscrape_api():
     if _twscrape_api is not None:
         return _twscrape_api
 
-    from pathlib import Path
     from twscrape import API
 
     db_path = Path(str(TWSCRAPE_DB))
 
-    # Delete stale DB from prior (broken) twscrape 0.17 installs so we
-    # get a clean account entry with the new version's schema.
+    # Delete stale DB so we get a clean account entry every startup.
     if db_path.exists():
         db_path.unlink()
 
@@ -62,6 +65,71 @@ def _tweet_to_xpost(tweet) -> XPost:
         url=tweet.url or "",
         created_at=tweet.date.isoformat() if tweet.date else "",
     )
+
+
+def get_twscrape_debug() -> dict:
+    """Return diagnostic info about the twscrape installation."""
+    info: dict = {}
+
+    # Check twscrape version
+    try:
+        import twscrape
+        info["twscrape_version"] = getattr(twscrape, "__version__", "unknown")
+        info["twscrape_location"] = str(Path(twscrape.__file__).parent)
+    except ImportError as e:
+        info["twscrape_import_error"] = str(e)
+        return info
+
+    # Check xclid module (the x-client-transaction-id fix)
+    try:
+        from twscrape.xclid import XClIdGen
+        info["xclid_available"] = True
+    except ImportError:
+        info["xclid_available"] = False
+
+    # Check cookies
+    info["has_auth_token"] = bool(BIRD_AUTH_TOKEN)
+    info["has_ct0"] = bool(BIRD_CT0)
+
+    # Check account in pool
+    try:
+        api = _get_twscrape_api()
+
+        async def _check():
+            accs = await api.pool.accounts_info()
+            return accs
+
+        accs = asyncio.run(_check())
+        info["accounts"] = str(accs) if accs else "none"
+    except Exception as e:
+        info["pool_error"] = str(e)
+
+    # Do a small test search
+    try:
+        api = _get_twscrape_api()
+
+        async def _test():
+            tweets = []
+            async for tweet in api.search("hello", limit=1, kv={"product": "Top"}):
+                tweets.append({
+                    "id": tweet.id,
+                    "handle": tweet.user.username if tweet.user else "",
+                    "text_preview": tweet.rawContent[:100] if tweet.rawContent else "",
+                    "likes": tweet.likeCount,
+                    "retweets": tweet.retweetCount,
+                    "replies": tweet.replyCount,
+                    "url": tweet.url,
+                })
+            return tweets
+
+        test_tweets = asyncio.run(_test())
+        info["test_search_count"] = len(test_tweets)
+        info["test_search_sample"] = test_tweets[:1]
+    except Exception as e:
+        info["test_search_error"] = f"{type(e).__name__}: {e}"
+        info["test_search_traceback"] = traceback.format_exc()
+
+    return info
 
 
 # ---------------------------------------------------------------------------
@@ -113,16 +181,26 @@ def search_posts(query: str, count: int = 10) -> ResearchResult:
 
         async def _search():
             results = []
+            raw_tweets = []
             async for tweet in api.search(query, limit=count, kv={"product": "Top"}):
                 results.append(_tweet_to_xpost(tweet))
-            return results
+                raw_tweets.append({
+                    "id": tweet.id,
+                    "handle": tweet.user.username if tweet.user else "",
+                    "rawContent": tweet.rawContent[:200] if tweet.rawContent else "",
+                    "likes": tweet.likeCount,
+                    "retweets": tweet.retweetCount,
+                    "replies": tweet.replyCount,
+                })
+            return results, json.dumps(raw_tweets, indent=2)
 
-        posts = asyncio.run(_search())
+        posts, raw = asyncio.run(_search())
         # Sort by total engagement descending
         posts.sort(key=lambda p: p.likes + p.retweets + p.replies, reverse=True)
-        return ResearchResult(posts=posts)
+        return ResearchResult(posts=posts, raw_output=raw)
     except Exception as e:
-        return ResearchResult(error=str(e))
+        logger.exception("search_posts failed")
+        return ResearchResult(error=f"{type(e).__name__}: {e}")
 
 
 def get_user_tweets(handle: str, count: int = 10) -> ResearchResult:
@@ -136,14 +214,24 @@ def get_user_tweets(handle: str, count: int = 10) -> ResearchResult:
             if not user:
                 raise RuntimeError(f"User @{handle} not found")
             results = []
+            raw_tweets = []
             async for tweet in api.user_tweets(user.id, limit=count):
                 results.append(_tweet_to_xpost(tweet))
-            return results
+                raw_tweets.append({
+                    "id": tweet.id,
+                    "handle": tweet.user.username if tweet.user else "",
+                    "rawContent": tweet.rawContent[:200] if tweet.rawContent else "",
+                    "likes": tweet.likeCount,
+                    "retweets": tweet.retweetCount,
+                    "replies": tweet.replyCount,
+                })
+            return results, json.dumps(raw_tweets, indent=2)
 
-        posts = asyncio.run(_fetch())
-        return ResearchResult(posts=posts)
+        posts, raw = asyncio.run(_fetch())
+        return ResearchResult(posts=posts, raw_output=raw)
     except Exception as e:
-        return ResearchResult(error=str(e))
+        logger.exception("get_user_tweets failed")
+        return ResearchResult(error=f"{type(e).__name__}: {e}")
 
 
 def get_trending() -> ResearchResult:
