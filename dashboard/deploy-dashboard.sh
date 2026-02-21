@@ -44,19 +44,6 @@ if [ ! -d .venv ]; then
 fi
 .venv/bin/pip install -q -r requirements.txt
 
-# Install twscrape from GitHub main (has x-client-transaction-id fix, unreleased on PyPI)
-echo "  Installing twscrape from GitHub..."
-.venv/bin/pip uninstall -y twscrape 2>/dev/null || true
-if .venv/bin/pip install "https://github.com/vladkens/twscrape/archive/refs/heads/main.zip"; then
-    echo "  twscrape installed from GitHub OK"
-else
-    echo "  WARNING: twscrape GitHub install failed, trying PyPI fallback..."
-    .venv/bin/pip install "twscrape>=0.17"
-fi
-
-# Verify twscrape has xclid module
-.venv/bin/python3 -c "from twscrape.xclid import XClIdGen; print('  twscrape xclid module: OK')" 2>/dev/null || echo "  WARNING: twscrape xclid module NOT available (search will be degraded)"
-
 # Frontend deps + build
 echo "  Installing frontend deps..."
 cd "$DASH_DIR/frontend"
@@ -103,6 +90,14 @@ EOF
 
 systemctl daemon-reload
 systemctl enable openclaw-api openclaw-web
+
+# Kill any rogue process on port 8000 before restarting
+echo "  Stopping any rogue processes on port 8000..."
+systemctl stop openclaw-api 2>/dev/null || true
+sleep 1
+lsof -ti:8000 | xargs -r kill -9 2>/dev/null || true
+sleep 1
+
 systemctl restart openclaw-api openclaw-web
 
 echo "  Services started."

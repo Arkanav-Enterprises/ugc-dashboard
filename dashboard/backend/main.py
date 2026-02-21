@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import logs, pipeline, content, knowledge, assets, chat, research
+from routers import logs, pipeline, content, knowledge, assets, chat
 
 app = FastAPI(title="OpenClaw Dashboard", version="1.0.0")
 
@@ -21,7 +21,6 @@ app.include_router(content.router)
 app.include_router(knowledge.router)
 app.include_router(assets.router)
 app.include_router(chat.router)
-app.include_router(research.router)
 
 
 @app.get("/api/health")

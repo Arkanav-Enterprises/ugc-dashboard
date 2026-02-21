@@ -10,7 +10,6 @@ import {
   BookOpen,
   Image,
   FileText,
-  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./theme-toggle";
@@ -22,7 +21,6 @@ const NAV_ITEMS = [
   { href: "/chat", label: "Agent Chat", icon: MessageSquare },
   { href: "/knowledge", label: "Knowledge Base", icon: BookOpen },
   { href: "/assets", label: "Asset Manager", icon: Image },
-  { href: "/research", label: "X Research", icon: Search },
   { href: "/logs", label: "Logs", icon: FileText },
 ];
 
