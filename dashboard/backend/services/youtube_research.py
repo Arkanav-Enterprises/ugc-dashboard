@@ -92,11 +92,27 @@ def scan_channel(url: str, max_videos: int = 20) -> dict:
 
 
 def fetch_transcript(video_id: str) -> str | None:
-    """Fetch transcript using youtube-transcript-api. Returns plain text or None."""
+    """Fetch transcript using youtube-transcript-api with optional proxy."""
+    import os
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
+        from youtube_transcript_api.proxies import WebshareProxyConfig, GenericProxyConfig
 
-        ytt_api = YouTubeTranscriptApi()
+        proxy_url = os.environ.get("YOUTUBE_PROXY")
+        webshare_key = os.environ.get("WEBSHARE_PROXY_API_KEY")
+
+        if webshare_key:
+            proxy_config = WebshareProxyConfig(proxy_api_key=webshare_key)
+            ytt_api = YouTubeTranscriptApi(proxy_config=proxy_config)
+        elif proxy_url:
+            proxy_config = GenericProxyConfig(
+                http_url=proxy_url,
+                https_url=proxy_url,
+            )
+            ytt_api = YouTubeTranscriptApi(proxy_config=proxy_config)
+        else:
+            ytt_api = YouTubeTranscriptApi()
+
         transcript = ytt_api.fetch(video_id, languages=["en"])
         text = " ".join(snippet.text for snippet in transcript.snippets)
         return text if text.strip() else None
