@@ -30,9 +30,9 @@ ssh "${VPS_USER}@${VPS_IP}" "chmod +x ${VPS_DEST}/scripts/*.sh ${VPS_DEST}/deplo
 echo "Ensuring crontab uses 'bash' prefix..."
 ssh "${VPS_USER}@${VPS_IP}" "crontab -l 2>/dev/null | sed 's|^\([0-9].*\) /root/openclaw/scripts/autopilot_video_cron.sh|\\1 bash /root/openclaw/scripts/autopilot_video_cron.sh|' | crontab -"
 
+# Restart dashboard services if they exist
+echo "Restarting dashboard services..."
+ssh "${VPS_USER}@${VPS_IP}" "systemctl restart openclaw-api openclaw-web 2>/dev/null && echo '  Services restarted.' || echo '  No dashboard services found (skipped).'"
+
 echo ""
-echo "Deploy complete. Next steps on VPS:"
-echo "  ssh ${VPS_USER}@${VPS_IP}"
-echo "  cd ${VPS_DEST}"
-echo "  cat .env  # verify API keys are set"
-echo "  python3 -c \"from PIL import Image; print('Pillow OK')\""
+echo "Deploy complete."
