@@ -26,9 +26,9 @@ eval rsync -avz --delete $EXCLUDE_ARGS \
 echo "Setting execute permissions on scripts..."
 ssh "${VPS_USER}@${VPS_IP}" "chmod +x ${VPS_DEST}/scripts/*.sh ${VPS_DEST}/deploy.sh 2>/dev/null; true"
 
-# Update crontab to use bash prefix (idempotent)
-echo "Ensuring crontab uses 'bash' prefix..."
-ssh "${VPS_USER}@${VPS_IP}" "crontab -l 2>/dev/null | sed 's|^\([0-9].*\) /root/openclaw/scripts/autopilot_video_cron.sh|\\1 bash /root/openclaw/scripts/autopilot_video_cron.sh|' | crontab -"
+# Scripts are already chmod +x above, so no crontab patching needed.
+# The crontab entry should be:
+#   30 6 * * * bash /root/openclaw/scripts/autopilot_video_cron.sh >> /root/openclaw/logs/cron.log 2>&1
 
 # Restart dashboard services if they exist
 echo "Restarting dashboard services..."
