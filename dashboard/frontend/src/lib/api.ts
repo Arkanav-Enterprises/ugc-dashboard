@@ -258,6 +258,7 @@ export interface ResearchResult {
   trends: XTrend[];
   raw_output: string;
   error: string;
+  min_faves: number;
 }
 
 // --- X Research API functions ---

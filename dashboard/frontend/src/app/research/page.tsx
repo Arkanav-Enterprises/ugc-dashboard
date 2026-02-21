@@ -38,9 +38,11 @@ import {
 function PostCard({
   post,
   onSave,
+  minFaves,
 }: {
   post: XPost;
   onSave: (post: XPost, section: SaveInsightRequest["section"]) => void;
+  minFaves?: number;
 }) {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -105,15 +107,23 @@ function PostCard({
         </div>
         <p className="text-sm whitespace-pre-wrap">{post.text}</p>
         <div className="flex items-center gap-4 text-xs text-muted-foreground pt-1">
-          <span className="flex items-center gap-1">
-            <Heart className="h-3 w-3" /> {post.likes}
-          </span>
-          <span className="flex items-center gap-1">
-            <Repeat2 className="h-3 w-3" /> {post.retweets}
-          </span>
-          <span className="flex items-center gap-1">
-            <MessageCircle className="h-3 w-3" /> {post.replies}
-          </span>
+          {post.likes + post.retweets + post.replies > 0 ? (
+            <>
+              <span className="flex items-center gap-1">
+                <Heart className="h-3 w-3" /> {post.likes}
+              </span>
+              <span className="flex items-center gap-1">
+                <Repeat2 className="h-3 w-3" /> {post.retweets}
+              </span>
+              <span className="flex items-center gap-1">
+                <MessageCircle className="h-3 w-3" /> {post.replies}
+              </span>
+            </>
+          ) : minFaves && minFaves > 0 ? (
+            <span className="flex items-center gap-1">
+              <Heart className="h-3 w-3" /> {minFaves}+
+            </span>
+          ) : null}
           {post.created_at && (
             <span className="ml-auto">{post.created_at}</span>
           )}
@@ -132,7 +142,7 @@ export default function ResearchPage() {
   // Discover tab
   const [searchQuery, setSearchQuery] = useState("");
   const [searchCount, setSearchCount] = useState(10);
-  const [minFaves, setMinFaves] = useState(100);
+  const [minFaves, setMinFaves] = useState(0);
   const [searchResult, setSearchResult] = useState<ResearchResult | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [trends, setTrends] = useState<XTrend[]>([]);
@@ -199,7 +209,7 @@ export default function ResearchPage() {
       const res = await searchPosts(q, searchCount, minFaves);
       setSearchResult(res);
     } catch {
-      setSearchResult({ posts: [], trends: [], raw_output: "", error: "Request failed" });
+      setSearchResult({ posts: [], trends: [], raw_output: "", error: "Request failed", min_faves: 0 });
     } finally {
       setSearchLoading(false);
     }
@@ -226,16 +236,16 @@ export default function ResearchPage() {
       const res = await getUserTweets(userHandle.trim(), userCount);
       setUserResult(res);
     } catch {
-      setUserResult({ posts: [], trends: [], raw_output: "", error: "Request failed" });
+      setUserResult({ posts: [], trends: [], raw_output: "", error: "Request failed", min_faves: 0 });
     } finally {
       setUserLoading(false);
     }
   }, [userHandle, userCount]);
 
-  const renderPosts = (posts: XPost[]) => (
+  const renderPosts = (posts: XPost[], resultMinFaves?: number) => (
     <div className="space-y-3">
       {posts.map((post, i) => (
-        <PostCard key={i} post={post} onSave={handleSavePost} />
+        <PostCard key={i} post={post} onSave={handleSavePost} minFaves={resultMinFaves} />
       ))}
     </div>
   );
@@ -265,7 +275,7 @@ export default function ResearchPage() {
     }
     return (
       <div className="space-y-4">
-        {renderPosts(result.posts)}
+        {renderPosts(result.posts, result.min_faves)}
         {showRaw && result.raw_output && (
           <Card>
             <CardHeader>

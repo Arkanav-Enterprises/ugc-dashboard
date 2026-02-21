@@ -107,6 +107,7 @@ class ResearchResult(BaseModel):
     trends: list[XTrend] = []
     raw_output: str = ""
     error: str = ""
+    min_faves: int = 0
 
 
 class SaveInsightRequest(BaseModel):

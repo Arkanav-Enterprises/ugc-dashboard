@@ -47,24 +47,64 @@ def _run_bird(args: list[str]) -> tuple[str, str]:
 
 
 def _parse_posts_from_text(raw: str) -> list[XPost]:
-    """Best-effort text parsing when JSON is unavailable."""
+    """Parse bird's text output format into XPost list.
+
+    Bird text format per post:
+        @handle (display name):
+        Tweet text (one or more lines)
+        🖼️ media url (optional)
+        ┌─ QT @user: ... └─ url (optional quoted tweet block)
+        📅 date
+        🔗 tweet url
+        ──────────────── (separator)
+    """
+    import re
     posts: list[XPost] = []
-    current: dict = {}
-    for line in raw.splitlines():
-        line = line.strip()
-        if not line:
-            if current.get("text"):
-                posts.append(XPost(**current))
-                current = {}
+    blocks = re.split(r"─{10,}", raw)
+    for block in blocks:
+        block = block.strip()
+        if not block:
             continue
-        if line.startswith("@"):
-            current["handle"] = line.split()[0]
-        elif not current.get("text"):
-            current["text"] = line
-        else:
-            current["text"] += " " + line
-    if current.get("text"):
-        posts.append(XPost(**current))
+        lines = block.splitlines()
+        handle = ""
+        text_lines: list[str] = []
+        url = ""
+        created_at = ""
+        in_qt = False
+
+        for line in lines:
+            s = line.strip()
+            if not s:
+                continue
+            # Quoted tweet block — skip entirely
+            if s.startswith("\u250c\u2500") or s.startswith("\u2502") or s.startswith("\u2514\u2500"):
+                in_qt = s.startswith("\u250c\u2500")
+                if s.startswith("\u2514\u2500"):
+                    in_qt = False
+                continue
+            # Handle line: @user (display name):
+            if s.startswith("@") and not handle:
+                m = re.match(r"@(\w+)", s)
+                if m:
+                    handle = m.group(1)
+                continue
+            # Date line
+            if "\U0001f4c5" in s:  # 📅
+                created_at = re.sub(r"^\U0001f4c5\s*", "", s).strip()
+                continue
+            # URL line
+            if "\U0001f517" in s:  # 🔗
+                url = re.sub(r"^\U0001f517\s*", "", s).strip()
+                continue
+            # Skip media lines
+            if s.startswith("\U0001f5bc") or s.startswith("\U0001f504"):  # 🖼️ 🔄
+                continue
+            # Regular text
+            text_lines.append(s)
+
+        text = " ".join(text_lines).strip()
+        if text or handle:
+            posts.append(XPost(handle=handle, text=text, url=url, created_at=created_at))
     return posts
 
 
@@ -97,16 +137,12 @@ def search_posts(query: str, count: int = 10, min_faves: int = 0) -> ResearchRes
     """Search X posts by keyword, optionally filtering by minimum likes."""
     full_query = f"{query} min_faves:{min_faves}" if min_faves > 0 else query
     try:
-        raw, _ = _run_bird(["search", full_query, "--count", str(count), "--json"])
+        raw, _ = _run_bird(["search", full_query, "--count", str(count)])
     except Exception as e:
         return ResearchResult(error=str(e))
 
-    try:
-        posts = _parse_posts_json(raw)
-    except (json.JSONDecodeError, Exception):
-        posts = _parse_posts_from_text(raw)
-    posts.sort(key=lambda p: p.likes + p.retweets + p.replies, reverse=True)
-    return ResearchResult(posts=posts, raw_output=raw)
+    posts = _parse_posts_from_text(raw)
+    return ResearchResult(posts=posts, raw_output=raw, min_faves=min_faves)
 
 
 def get_user_tweets(handle: str, count: int = 10) -> ResearchResult:
