@@ -3,7 +3,9 @@
 import asyncio
 import json
 import re
+import shutil
 import subprocess
+import sys
 import tempfile
 import uuid
 from datetime import datetime, timezone
@@ -13,6 +15,17 @@ from typing import AsyncGenerator
 import anthropic
 
 from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL, RESEARCH_OUTPUT_DIR
+
+
+def _yt_dlp_bin() -> str:
+    """Find yt-dlp binary — prefer the one in the same venv as the running Python."""
+    venv_bin = Path(sys.executable).parent / "yt-dlp"
+    if venv_bin.exists():
+        return str(venv_bin)
+    system_bin = shutil.which("yt-dlp")
+    if system_bin:
+        return system_bin
+    raise FileNotFoundError("yt-dlp not installed")
 
 
 # ─── Channel scanning ────────────────────────────────
@@ -26,7 +39,7 @@ def scan_channel(url: str, max_videos: int = 20) -> dict:
         clean_url += "/videos"
 
     cmd = [
-        "yt-dlp",
+        _yt_dlp_bin(),
         "--flat-playlist",
         "--dump-json",
         "--playlist-end", str(max_videos),
@@ -48,7 +61,7 @@ def scan_channel(url: str, max_videos: int = 20) -> dict:
             continue
 
         if not channel_name:
-            channel_name = entry.get("channel", entry.get("uploader", "Unknown"))
+            channel_name = entry.get("channel") or entry.get("playlist_channel") or entry.get("playlist_uploader") or entry.get("uploader") or "Unknown"
 
         videos.append({
             "video_id": entry.get("id", ""),
@@ -73,7 +86,7 @@ def fetch_transcript(video_id: str) -> str | None:
     """Download and parse subtitles for a video. Returns plain text or None."""
     with tempfile.TemporaryDirectory() as tmpdir:
         cmd = [
-            "yt-dlp",
+            _yt_dlp_bin(),
             "--write-auto-sub",
             "--write-sub",
             "--sub-lang", "en",
