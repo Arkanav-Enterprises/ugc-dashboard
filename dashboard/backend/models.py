@@ -167,3 +167,45 @@ class YTResearchListItem(BaseModel):
     channel_name: str
     created_at: str
     video_count: int
+    source: str = "youtube"
+
+
+# ─── Reddit Research models ────────────────────────
+
+class RedditSearchRequest(BaseModel):
+    query: str
+    subreddits: list[str] = []
+    time_filter: str = "week"
+    limit: int = 25
+
+
+class RedditThread(BaseModel):
+    thread_id: str
+    title: str
+    subreddit: str
+    score: int
+    num_comments: int
+    permalink: str
+    created_utc: float
+    selftext_preview: str = ""
+    url: str = ""
+
+
+class RedditSearchResult(BaseModel):
+    query: str
+    threads: list[RedditThread]
+
+
+class RedditAnalyzeRequest(BaseModel):
+    query: str
+    threads: list[dict]
+
+
+class RedditThreadSummary(BaseModel):
+    thread_id: str
+    title: str
+    subreddit: str
+    summary: Optional[str] = None
+    key_points: list[str] = []
+    sentiment: Optional[str] = None
+    error: Optional[str] = None

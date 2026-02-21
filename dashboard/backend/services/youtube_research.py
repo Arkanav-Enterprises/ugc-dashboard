@@ -257,6 +257,7 @@ Use markdown formatting.""",
     research_id = str(uuid.uuid4())[:8]
     result = {
         "id": research_id,
+        "source": "youtube",
         "channel_name": channel_name,
         "channel_url": channel_url,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -320,6 +321,7 @@ def list_research() -> list[dict]:
                 "channel_name": data["channel_name"],
                 "created_at": data["created_at"],
                 "video_count": len(data.get("video_summaries", [])),
+                "source": data.get("source", "youtube"),
             })
         except (json.JSONDecodeError, KeyError):
             continue

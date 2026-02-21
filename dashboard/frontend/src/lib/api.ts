@@ -325,6 +325,7 @@ export interface YTResearchListItem {
   channel_name: string;
   created_at: string;
   video_count: number;
+  source?: string;
 }
 
 export async function scanYTChannel(channelUrl: string, maxVideos: number = 20) {
@@ -403,4 +404,106 @@ export async function listYTResearch() {
 
 export async function getYTResearch(id: string) {
   return fetchAPI<YTResearchResult>(`/api/research/results/${id}`);
+}
+
+// ─── Reddit Research ─────────────────────────────────
+
+export interface RedditThread {
+  thread_id: string;
+  title: string;
+  subreddit: string;
+  score: number;
+  num_comments: number;
+  permalink: string;
+  created_utc: number;
+  selftext_preview: string;
+  url: string;
+}
+
+export interface RedditSearchResult {
+  query: string;
+  threads: RedditThread[];
+}
+
+export interface RedditThreadSummary {
+  thread_id: string;
+  title: string;
+  subreddit: string;
+  summary: string | null;
+  key_points: string[];
+  sentiment: string | null;
+  error: string | null;
+}
+
+export async function searchReddit(
+  query: string,
+  subreddits: string[] = [],
+  timeFilter: string = "week",
+  limit: number = 25
+) {
+  return fetchAPI<RedditSearchResult>("/api/research/reddit/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query,
+      subreddits,
+      time_filter: timeFilter,
+      limit,
+    }),
+  });
+}
+
+export async function streamRedditAnalysis(
+  query: string,
+  threads: RedditThread[],
+  onEvent: (event: Record<string, unknown>) => void,
+  onDone: () => void,
+  onError: (err: string) => void
+) {
+  const res = await fetch(`${API_BASE}/api/research/reddit/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, threads }),
+  });
+
+  if (!res.ok) {
+    onError(`API error: ${res.status}`);
+    return;
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) {
+    onError("No response body");
+    return;
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        const data = line.slice(6);
+        if (data === "[DONE]") {
+          onDone();
+          return;
+        }
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.type === "error") onError(parsed.content);
+          else onEvent(parsed);
+        } catch {
+          // skip malformed lines
+        }
+      }
+    }
+  }
+  onDone();
 }

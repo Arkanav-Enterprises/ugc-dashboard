@@ -11,9 +11,13 @@ import {
   streamYTAnalysis,
   listYTResearch,
   getYTResearch,
+  searchReddit,
+  streamRedditAnalysis,
   YTVideoInfo,
   YTVideoSummary,
   YTResearchListItem,
+  RedditThread,
+  RedditThreadSummary,
 } from "@/lib/api";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -27,9 +31,48 @@ import {
   ChevronRight,
   Clock,
   Eye,
+  ArrowUpRight,
+  MessageSquare,
 } from "lucide-react";
 
 type Phase = "input" | "selecting" | "analyzing" | "results";
+type Source = "youtube" | "reddit";
+
+// Unified summary type for both YouTube and Reddit
+interface UnifiedSummary {
+  id: string;
+  title: string;
+  subtitle?: string;
+  summary: string | null;
+  key_points: string[];
+  sentiment?: string | null;
+  error: string | null;
+  hasContent: boolean;
+}
+
+function toUnifiedSummary(s: YTVideoSummary): UnifiedSummary {
+  return {
+    id: s.video_id,
+    title: s.title,
+    summary: s.summary,
+    key_points: s.key_points,
+    error: s.error,
+    hasContent: s.has_transcript,
+  };
+}
+
+function redditToUnifiedSummary(s: RedditThreadSummary): UnifiedSummary {
+  return {
+    id: s.thread_id,
+    title: s.title,
+    subtitle: `r/${s.subreddit}`,
+    summary: s.summary,
+    key_points: s.key_points,
+    sentiment: s.sentiment,
+    error: s.error,
+    hasContent: !!s.summary,
+  };
+}
 
 function formatDuration(seconds: number | null) {
   if (!seconds) return "";
@@ -54,24 +97,48 @@ function formatViews(n: number | null) {
   return `${n} views`;
 }
 
+function formatRedditDate(utc: number) {
+  return new Date(utc * 1000).toLocaleDateString();
+}
+
+function formatScore(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return `${n}`;
+}
+
 export default function ResearchPage() {
   const [phase, setPhase] = useState<Phase>("input");
+  const [source, setSource] = useState<Source>("youtube");
+
+  // YouTube input state
   const [channelUrl, setChannelUrl] = useState("");
   const [maxVideos, setMaxVideos] = useState(10);
+
+  // Reddit input state
+  const [redditQuery, setRedditQuery] = useState("");
+  const [subredditFilter, setSubredditFilter] = useState("");
+  const [timeFilter, setTimeFilter] = useState("week");
+  const [redditLimit, setRedditLimit] = useState(15);
+
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState("");
 
-  // Channel scan results
+  // YouTube scan results
   const [channelName, setChannelName] = useState("");
   const [videos, setVideos] = useState<YTVideoInfo[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // Analysis state
+  // Reddit search results
+  const [redditThreads, setRedditThreads] = useState<RedditThread[]>([]);
+  const [selectedThreads, setSelectedThreads] = useState<Set<string>>(new Set());
+
+  // Analysis state (shared)
   const [analyzing, setAnalyzing] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
   const [progress, setProgress] = useState(0);
   const [totalProgress, setTotalProgress] = useState(0);
-  const [summaries, setSummaries] = useState<YTVideoSummary[]>([]);
+  const [summaries, setSummaries] = useState<UnifiedSummary[]>([]);
   const [crossAnalysis, setCrossAnalysis] = useState("");
   const [resultId, setResultId] = useState("");
 
@@ -85,6 +152,8 @@ export default function ResearchPage() {
   useEffect(() => {
     listYTResearch().then(setPastResults).catch(() => {});
   }, []);
+
+  // ─── YouTube handlers ──────────────────────────────
 
   const handleScan = async () => {
     if (!channelUrl.trim()) return;
@@ -115,7 +184,7 @@ export default function ResearchPage() {
   const selectAll = () => setSelected(new Set(videos.map((v) => v.video_id)));
   const deselectAll = () => setSelected(new Set());
 
-  const handleAnalyze = async () => {
+  const handleYTAnalyze = async () => {
     if (selected.size === 0) return;
     setPhase("analyzing");
     setAnalyzing(true);
@@ -143,18 +212,18 @@ export default function ResearchPage() {
             if (event.total !== undefined) setTotalProgress(event.total as number);
             break;
           case "video_summary":
-            setSummaries((prev) => [...prev, event.data as YTVideoSummary]);
+            setSummaries((prev) => [...prev, toUnifiedSummary(event.data as YTVideoSummary)]);
             break;
           case "transcript_error":
             setSummaries((prev) => [
               ...prev,
               {
-                video_id: event.video_id as string,
+                id: event.video_id as string,
                 title: event.title as string,
-                has_transcript: false,
                 summary: null,
                 key_points: [],
                 error: "No transcript available",
+                hasContent: false,
               },
             ]);
             break;
@@ -181,12 +250,122 @@ export default function ResearchPage() {
     );
   };
 
+  // ─── Reddit handlers ───────────────────────────────
+
+  const handleRedditSearch = async () => {
+    if (!redditQuery.trim()) return;
+    setScanning(true);
+    setScanError("");
+    try {
+      const subs = subredditFilter
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const result = await searchReddit(redditQuery.trim(), subs, timeFilter, redditLimit);
+      setRedditThreads(result.threads);
+      setSelectedThreads(new Set(result.threads.map((t) => t.thread_id)));
+      setChannelName(`Reddit: ${redditQuery.trim()}`);
+      setPhase("selecting");
+    } catch (e) {
+      setScanError(e instanceof Error ? e.message : "Search failed");
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const toggleThread = (id: string) => {
+    setSelectedThreads((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllThreads = () =>
+    setSelectedThreads(new Set(redditThreads.map((t) => t.thread_id)));
+  const deselectAllThreads = () => setSelectedThreads(new Set());
+
+  const handleRedditAnalyze = async () => {
+    if (selectedThreads.size === 0) return;
+    setPhase("analyzing");
+    setAnalyzing(true);
+    setSummaries([]);
+    setCrossAnalysis("");
+    setStatusMsg("Starting analysis...");
+    setProgress(0);
+    setTotalProgress(selectedThreads.size);
+
+    const threads = redditThreads.filter((t) => selectedThreads.has(t.thread_id));
+
+    await streamRedditAnalysis(
+      redditQuery,
+      threads,
+      (event) => {
+        switch (event.type) {
+          case "status":
+            setStatusMsg(event.content as string);
+            if (event.progress !== undefined) setProgress(event.progress as number);
+            if (event.total !== undefined) setTotalProgress(event.total as number);
+            break;
+          case "thread_summary":
+            setSummaries((prev) => [
+              ...prev,
+              redditToUnifiedSummary(event.data as RedditThreadSummary),
+            ]);
+            break;
+          case "thread_error":
+            setSummaries((prev) => [
+              ...prev,
+              {
+                id: event.thread_id as string,
+                title: event.title as string,
+                summary: null,
+                key_points: [],
+                error: "No comments available",
+                hasContent: false,
+              },
+            ]);
+            break;
+          case "cross_analysis_chunk":
+            setCrossAnalysis((prev) => prev + (event.content as string));
+            break;
+          case "complete":
+            setResultId(event.id as string);
+            break;
+        }
+      },
+      () => {
+        setAnalyzing(false);
+        setPhase("results");
+        listYTResearch().then(setPastResults).catch(() => {});
+      },
+      (err) => {
+        setStatusMsg(`Error: ${err}`);
+        setAnalyzing(false);
+        if (summaries.length > 0 || crossAnalysis) {
+          setPhase("results");
+        }
+      }
+    );
+  };
+
+  // ─── Shared handlers ──────────────────────────────
+
   const loadPastResult = async (id: string) => {
     try {
       const result = await getYTResearch(id);
       setChannelName(result.channel_name);
       setChannelUrl(result.channel_url);
-      setSummaries(result.video_summaries);
+      // Convert to unified summaries
+      setSummaries(result.video_summaries.map((s) => {
+        // Check if this is a Reddit summary (has subreddit field)
+        const raw = s as unknown as Record<string, unknown>;
+        if (raw.subreddit) {
+          return redditToUnifiedSummary(raw as unknown as RedditThreadSummary);
+        }
+        return toUnifiedSummary(s);
+      }));
       setCrossAnalysis(result.cross_analysis);
       setResultId(result.id);
       setPhase("results");
@@ -201,12 +380,19 @@ export default function ResearchPage() {
     setChannelName("");
     setVideos([]);
     setSelected(new Set());
+    setRedditThreads([]);
+    setSelectedThreads(new Set());
     setSummaries([]);
     setCrossAnalysis("");
     setResultId("");
     setScanError("");
     setStatusMsg("");
+    setRedditQuery("");
+    setSubredditFilter("");
   };
+
+  const summaryLabel = source === "reddit" ? "Thread Summaries" : "Video Summaries";
+  const crossLabel = source === "reddit" ? "Cross-Thread Analysis" : "Cross-Video Analysis";
 
   return (
     <div className="space-y-4">
@@ -214,7 +400,7 @@ export default function ResearchPage() {
         <div>
           <h2 className="text-xl font-semibold">Trend Research</h2>
           <p className="text-sm text-muted-foreground">
-            Analyze YouTube channels to find trending themes and content patterns
+            Analyze YouTube channels or Reddit threads to find trending themes and content patterns
           </p>
         </div>
         {phase !== "input" && (
@@ -244,9 +430,17 @@ export default function ResearchPage() {
                   onClick={() => loadPastResult(r.id)}
                   className="w-full text-left px-3 py-2 rounded-md hover:bg-accent text-sm flex items-center justify-between"
                 >
-                  <span className="font-medium">{r.channel_name}</span>
+                  <span className="flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] px-1.5 py-0"
+                    >
+                      {(r.source || "youtube") === "reddit" ? "Reddit" : "YouTube"}
+                    </Badge>
+                    <span className="font-medium">{r.channel_name}</span>
+                  </span>
                   <span className="text-xs text-muted-foreground">
-                    {r.video_count} videos &middot; {formatDate(r.created_at)}
+                    {r.video_count} {(r.source || "youtube") === "reddit" ? "threads" : "videos"} &middot; {formatDate(r.created_at)}
                   </span>
                 </button>
               ))}
@@ -257,48 +451,136 @@ export default function ResearchPage() {
 
       {/* Phase: Input */}
       {phase === "input" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Scan YouTube Channel</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-2">
-              <Input
-                placeholder="https://www.youtube.com/@channelname"
-                value={channelUrl}
-                onChange={(e) => setChannelUrl(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleScan()}
-                className="flex-1"
-              />
-              <select
-                value={maxVideos}
-                onChange={(e) => setMaxVideos(Number(e.target.value))}
-                className="rounded-md border bg-background px-3 py-2 text-sm"
-              >
-                {[5, 10, 15, 20, 30, 50].map((n) => (
-                  <option key={n} value={n}>
-                    {n} videos
-                  </option>
-                ))}
-              </select>
-              <Button onClick={handleScan} disabled={scanning || !channelUrl.trim()}>
-                {scanning ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <Search className="h-4 w-4 mr-2" />
+        <>
+          {/* Source tab switcher */}
+          <div className="flex gap-1 border-b">
+            <button
+              onClick={() => setSource("youtube")}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                source === "youtube"
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              YouTube
+            </button>
+            <button
+              onClick={() => setSource("reddit")}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                source === "reddit"
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Reddit
+            </button>
+          </div>
+
+          {source === "youtube" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">Scan YouTube Channel</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="https://www.youtube.com/@channelname"
+                    value={channelUrl}
+                    onChange={(e) => setChannelUrl(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleScan()}
+                    className="flex-1"
+                  />
+                  <select
+                    value={maxVideos}
+                    onChange={(e) => setMaxVideos(Number(e.target.value))}
+                    className="rounded-md border bg-background px-3 py-2 text-sm"
+                  >
+                    {[5, 10, 15, 20, 30, 50].map((n) => (
+                      <option key={n} value={n}>
+                        {n} videos
+                      </option>
+                    ))}
+                  </select>
+                  <Button onClick={handleScan} disabled={scanning || !channelUrl.trim()}>
+                    {scanning ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Search className="h-4 w-4 mr-2" />
+                    )}
+                    Scan
+                  </Button>
+                </div>
+                {scanError && (
+                  <p className="text-sm text-destructive">{scanError}</p>
                 )}
-                Scan
-              </Button>
-            </div>
-            {scanError && (
-              <p className="text-sm text-destructive">{scanError}</p>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          )}
+
+          {source === "reddit" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">Search Reddit</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Search topic (e.g. micro saas)"
+                    value={redditQuery}
+                    onChange={(e) => setRedditQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleRedditSearch()}
+                    className="flex-1"
+                  />
+                  <Button onClick={handleRedditSearch} disabled={scanning || !redditQuery.trim()}>
+                    {scanning ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Search className="h-4 w-4 mr-2" />
+                    )}
+                    Search
+                  </Button>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Filter subreddits (comma-separated, optional)"
+                    value={subredditFilter}
+                    onChange={(e) => setSubredditFilter(e.target.value)}
+                    className="flex-1"
+                  />
+                  <select
+                    value={timeFilter}
+                    onChange={(e) => setTimeFilter(e.target.value)}
+                    className="rounded-md border bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="day">Past day</option>
+                    <option value="week">Past week</option>
+                    <option value="month">Past month</option>
+                    <option value="year">Past year</option>
+                    <option value="all">All time</option>
+                  </select>
+                  <select
+                    value={redditLimit}
+                    onChange={(e) => setRedditLimit(Number(e.target.value))}
+                    className="rounded-md border bg-background px-3 py-2 text-sm"
+                  >
+                    {[5, 10, 15, 25, 50].map((n) => (
+                      <option key={n} value={n}>
+                        {n} threads
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {scanError && (
+                  <p className="text-sm text-destructive">{scanError}</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
 
-      {/* Phase: Selecting */}
-      {phase === "selecting" && (
+      {/* Phase: Selecting — YouTube */}
+      {phase === "selecting" && source === "youtube" && (
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -368,7 +650,7 @@ export default function ResearchPage() {
                 <Button variant="outline" onClick={reset}>
                   Back
                 </Button>
-                <Button onClick={handleAnalyze} disabled={selected.size === 0}>
+                <Button onClick={handleYTAnalyze} disabled={selected.size === 0}>
                   <Play className="h-4 w-4 mr-2" />
                   Analyze {selected.size} Video{selected.size !== 1 ? "s" : ""}
                 </Button>
@@ -378,7 +660,85 @@ export default function ResearchPage() {
         </Card>
       )}
 
-      {/* Phase: Analyzing */}
+      {/* Phase: Selecting — Reddit */}
+      {phase === "selecting" && source === "reddit" && (
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium">
+                &ldquo;{redditQuery}&rdquo; &mdash; {redditThreads.length} threads found
+              </CardTitle>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" onClick={selectAllThreads}>
+                  Select All
+                </Button>
+                <Button variant="ghost" size="sm" onClick={deselectAllThreads}>
+                  Deselect All
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[calc(100vh-16rem)]">
+              <div className="space-y-2">
+                {redditThreads.map((t) => (
+                  <div
+                    key={t.thread_id}
+                    className="flex items-center gap-3 p-2 rounded-md hover:bg-accent cursor-pointer"
+                    onClick={() => toggleThread(t.thread_id)}
+                  >
+                    <button className="shrink-0">
+                      {selectedThreads.has(t.thread_id) ? (
+                        <CheckSquare className="h-5 w-5 text-primary" />
+                      ) : (
+                        <Square className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{t.title}</p>
+                      <div className="flex gap-3 text-xs text-muted-foreground mt-1">
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                          r/{t.subreddit}
+                        </Badge>
+                        <span className="flex items-center gap-1">
+                          <ArrowUpRight className="h-3 w-3" />
+                          {formatScore(t.score)}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <MessageSquare className="h-3 w-3" />
+                          {t.num_comments}
+                        </span>
+                        <span>{formatRedditDate(t.created_utc)}</span>
+                      </div>
+                      {t.selftext_preview && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                          {t.selftext_preview}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+            <div className="mt-4 flex items-center justify-between border-t pt-4">
+              <span className="text-sm text-muted-foreground">
+                {selectedThreads.size} of {redditThreads.length} selected
+              </span>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={reset}>
+                  Back
+                </Button>
+                <Button onClick={handleRedditAnalyze} disabled={selectedThreads.size === 0}>
+                  <Play className="h-4 w-4 mr-2" />
+                  Analyze {selectedThreads.size} Thread{selectedThreads.size !== 1 ? "s" : ""}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Phase: Analyzing (shared) */}
       {phase === "analyzing" && (
         <div className="space-y-4">
           <Card>
@@ -412,7 +772,7 @@ export default function ResearchPage() {
           {summaries.length > 0 && (
             <div className="space-y-3">
               {summaries.map((s) => (
-                <SummaryCard key={s.video_id} summary={s} />
+                <SummaryCard key={s.id} summary={s} />
               ))}
             </div>
           )}
@@ -421,7 +781,7 @@ export default function ResearchPage() {
           {crossAnalysis && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Cross-Video Analysis</CardTitle>
+                <CardTitle className="text-sm font-medium">{crossLabel}</CardTitle>
               </CardHeader>
               <CardContent className="prose prose-sm dark:prose-invert max-w-none">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -433,7 +793,7 @@ export default function ResearchPage() {
         </div>
       )}
 
-      {/* Phase: Results */}
+      {/* Phase: Results (shared) */}
       {phase === "results" && (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
@@ -455,7 +815,7 @@ export default function ResearchPage() {
                   : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
-              Video Summaries ({summaries.length})
+              {summaryLabel} ({summaries.length})
             </button>
             <button
               onClick={() => setActiveTab("analysis")}
@@ -472,7 +832,7 @@ export default function ResearchPage() {
           {activeTab === "summaries" && (
             <div className="space-y-3">
               {summaries.map((s) => (
-                <SummaryCard key={s.video_id} summary={s} />
+                <SummaryCard key={s.id} summary={s} />
               ))}
             </div>
           )}
@@ -492,17 +852,29 @@ export default function ResearchPage() {
   );
 }
 
-function SummaryCard({ summary }: { summary: YTVideoSummary }) {
+function SummaryCard({ summary }: { summary: UnifiedSummary }) {
   return (
-    <Card className={!summary.has_transcript ? "opacity-60" : ""}>
+    <Card className={!summary.hasContent ? "opacity-60" : ""}>
       <CardContent className="pt-4">
         <div className="flex items-start justify-between gap-2">
-          <h4 className="text-sm font-medium">{summary.title}</h4>
-          {!summary.has_transcript && (
-            <Badge variant="outline" className="shrink-0 text-xs">
-              No transcript
-            </Badge>
-          )}
+          <div>
+            <h4 className="text-sm font-medium">{summary.title}</h4>
+            {summary.subtitle && (
+              <span className="text-xs text-muted-foreground">{summary.subtitle}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {summary.sentiment && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                {summary.sentiment}
+              </Badge>
+            )}
+            {!summary.hasContent && (
+              <Badge variant="outline" className="text-xs">
+                No content
+              </Badge>
+            )}
+          </div>
         </div>
         {summary.summary && (
           <p className="text-sm text-muted-foreground mt-2">{summary.summary}</p>
