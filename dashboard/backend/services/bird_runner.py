@@ -109,7 +109,7 @@ def search_posts(query: str, count: int = 10) -> ResearchResult:
 
         async def _search():
             results = []
-            async for tweet in api.search(query, limit=count):
+            async for tweet in api.search(query, limit=count, kv={"product": "Top"}):
                 results.append(_tweet_to_xpost(tweet))
             return results
 
