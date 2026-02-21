@@ -92,51 +92,16 @@ def scan_channel(url: str, max_videos: int = 20) -> dict:
 
 
 def fetch_transcript(video_id: str) -> str | None:
-    """Download and parse subtitles for a video. Returns plain text or None."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        cmd = [
-            _yt_dlp_bin(),
-            *_cookies_args(),
-            "--write-auto-sub",
-            "--write-sub",
-            "--sub-lang", "en",
-            "--skip-download",
-            "--convert-subs", "vtt",
-            "-o", f"{tmpdir}/%(id)s.%(ext)s",
-            f"https://www.youtube.com/watch?v={video_id}",
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    """Fetch transcript using youtube-transcript-api. Returns plain text or None."""
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
 
-        # Find subtitle files — check both .vtt and any other sub format
-        sub_files = list(Path(tmpdir).glob("*.vtt"))
-        if not sub_files:
-            # Fallback: try any subtitle file that was downloaded
-            sub_files = list(Path(tmpdir).glob("*.en.*"))
-        if not sub_files:
-            return None
-
-        vtt_text = sub_files[0].read_text(encoding="utf-8", errors="replace")
-        return _vtt_to_plain_text(vtt_text)
-
-
-def _vtt_to_plain_text(vtt: str) -> str:
-    """Convert VTT subtitle content to plain text."""
-    lines = []
-    seen = set()
-    for line in vtt.split("\n"):
-        # Skip VTT headers, timestamps, and blank lines
-        if line.startswith("WEBVTT") or line.startswith("Kind:") or line.startswith("Language:"):
-            continue
-        if re.match(r"\d{2}:\d{2}:\d{2}\.\d{3}\s*-->", line):
-            continue
-        if not line.strip():
-            continue
-        # Remove VTT tags like <c> </c> <00:00:01.234>
-        clean = re.sub(r"<[^>]+>", "", line).strip()
-        if clean and clean not in seen:
-            seen.add(clean)
-            lines.append(clean)
-    return " ".join(lines)
+        ytt_api = YouTubeTranscriptApi()
+        transcript = ytt_api.fetch(video_id, languages=["en"])
+        text = " ".join(snippet.text for snippet in transcript.snippets)
+        return text if text.strip() else None
+    except Exception:
+        return None
 
 
 # ─── Analysis (async generator for SSE) ──────────────
