@@ -162,6 +162,20 @@ export async function streamChat(
   onDone();
 }
 
+// ─── Schedule ─────────────────────────────────────────
+
+export async function getSchedule() {
+  return fetchAPI<ScheduleState>("/api/schedule");
+}
+
+export async function updateSchedule(data: ScheduleUpdateRequest) {
+  return fetchAPI<ScheduleState>("/api/schedule", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
 // Types
 export interface OverviewStats {
   today_runs: number;
@@ -234,4 +248,39 @@ export interface PipelineRunStatus {
   persona: string;
   started_at: string;
   output: string;
+}
+
+export interface ScheduleSlot {
+  type: "video" | "text";
+  persona: string | null;
+  account: string | null;
+  time_utc: string;
+  time_ist: string;
+  video_type: string | null;
+  enabled: boolean;
+  last_run: string | null;
+  last_status: string | null;
+}
+
+export interface CronHistoryEntry {
+  timestamp: string;
+  status: "ok" | "failed" | "running";
+  message: string;
+}
+
+export interface ScheduleState {
+  video_pipeline_enabled: boolean;
+  text_pipeline_enabled: boolean;
+  video_time_utc: string;
+  video_time_ist: string;
+  today_video_type: string;
+  slots: ScheduleSlot[];
+  cron_history: CronHistoryEntry[];
+}
+
+export interface ScheduleUpdateRequest {
+  video_pipeline_enabled?: boolean;
+  text_pipeline_enabled?: boolean;
+  video_personas?: Record<string, { enabled?: boolean; video_type?: string }>;
+  text_accounts?: Record<string, { enabled?: boolean }>;
 }

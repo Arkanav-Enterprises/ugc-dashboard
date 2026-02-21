@@ -1,0 +1,19 @@
+{
+  "video_pipeline": {
+    "enabled": true,
+    "time_utc": "06:30",
+    "personas": {
+      "sanya": { "enabled": true, "video_type": "auto" },
+      "sophie": { "enabled": true, "video_type": "auto" },
+      "aliyah": { "enabled": true, "video_type": "auto" }
+    }
+  },
+  "text_pipeline": {
+    "enabled": true,
+    "accounts": {
+      "sophie.unplugs": { "enabled": true, "time_utc": "01:30" },
+      "emillywilks": { "enabled": true, "time_utc": "01:45" },
+      "sanyahealing": { "enabled": true, "time_utc": "02:00" }
+    }
+  }
+}

@@ -76,3 +76,40 @@ class PipelineRunStatus(BaseModel):
 class ChatMessage(BaseModel):
     role: str  # user, assistant
     content: str
+
+
+# ─── Schedule models ─────────────────────────────────
+
+class ScheduleSlot(BaseModel):
+    type: str  # "video" or "text"
+    persona: Optional[str] = None
+    account: Optional[str] = None
+    time_utc: str
+    time_ist: str
+    video_type: Optional[str] = None
+    enabled: bool
+    last_run: Optional[str] = None
+    last_status: Optional[str] = None
+
+
+class CronHistoryEntry(BaseModel):
+    timestamp: str
+    status: str  # "ok" or "failed"
+    message: str
+
+
+class ScheduleState(BaseModel):
+    video_pipeline_enabled: bool
+    text_pipeline_enabled: bool
+    video_time_utc: str
+    video_time_ist: str
+    today_video_type: str
+    slots: list[ScheduleSlot]
+    cron_history: list[CronHistoryEntry]
+
+
+class ScheduleUpdateRequest(BaseModel):
+    video_pipeline_enabled: Optional[bool] = None
+    text_pipeline_enabled: Optional[bool] = None
+    video_personas: Optional[dict[str, dict]] = None
+    text_accounts: Optional[dict[str, dict]] = None
