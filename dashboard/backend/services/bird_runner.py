@@ -99,6 +99,7 @@ def search_posts(query: str, count: int = 10) -> ResearchResult:
         posts = _parse_posts_json(raw)
     except (json.JSONDecodeError, Exception):
         posts = _parse_posts_from_text(raw)
+    posts.sort(key=lambda p: p.likes + p.retweets + p.replies, reverse=True)
     return ResearchResult(posts=posts, raw_output=raw)
 
 

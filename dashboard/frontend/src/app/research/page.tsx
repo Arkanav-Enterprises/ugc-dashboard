@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,8 @@ import {
   ChevronRight,
   Bookmark,
   Check,
+  RefreshCw,
+  Flame,
 } from "lucide-react";
 
 function PostCard({
@@ -121,44 +123,18 @@ function PostCard({
   );
 }
 
-function TrendCard({
-  trend,
-  onClick,
-}: {
-  trend: XTrend;
-  onClick: () => void;
-}) {
-  return (
-    <Card
-      className="cursor-pointer hover:bg-accent/50 transition-colors"
-      onClick={onClick}
-    >
-      <CardContent className="pt-4">
-        <p className="font-medium text-sm">{trend.name}</p>
-        {trend.tweet_count && (
-          <p className="text-xs text-muted-foreground mt-1">
-            {trend.tweet_count} posts
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 const COUNT_OPTIONS = [5, 10, 20, 50];
 
 export default function ResearchPage() {
   const [birdAvailable, setBirdAvailable] = useState<boolean | null>(null);
 
-  // Search tab
+  // Discover tab
   const [searchQuery, setSearchQuery] = useState("");
   const [searchCount, setSearchCount] = useState(10);
   const [searchResult, setSearchResult] = useState<ResearchResult | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
-
-  // Trending tab
-  const [trendResult, setTrendResult] = useState<ResearchResult | null>(null);
-  const [trendLoading, setTrendLoading] = useState(false);
+  const [trends, setTrends] = useState<XTrend[]>([]);
+  const [trendsLoading, setTrendsLoading] = useState(false);
 
   // Account tab
   const [userHandle, setUserHandle] = useState("");
@@ -170,11 +146,31 @@ export default function ResearchPage() {
   const [showRaw, setShowRaw] = useState(false);
 
   // Active tab
-  const [activeTab, setActiveTab] = useState("search");
+  const [activeTab, setActiveTab] = useState("discover");
+
+  // Ref to track if we need to auto-search after setting query from trend click
+  const pendingSearchRef = useRef(false);
 
   useEffect(() => {
     getResearchStatus().then((s) => setBirdAvailable(s.available)).catch(() => setBirdAvailable(false));
   }, []);
+
+  // Fetch trending on mount
+  const fetchTrending = useCallback(async () => {
+    setTrendsLoading(true);
+    try {
+      const res = await getTrending();
+      setTrends(res.trends || []);
+    } catch {
+      setTrends([]);
+    } finally {
+      setTrendsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTrending();
+  }, [fetchTrending]);
 
   const handleSavePost = useCallback(
     async (post: XPost, section: SaveInsightRequest["section"]) => {
@@ -193,11 +189,12 @@ export default function ResearchPage() {
     []
   );
 
-  const handleSearch = useCallback(async () => {
-    if (!searchQuery.trim()) return;
+  const handleSearch = useCallback(async (query?: string) => {
+    const q = (query ?? searchQuery).trim();
+    if (!q) return;
     setSearchLoading(true);
     try {
-      const res = await searchPosts(searchQuery.trim(), searchCount);
+      const res = await searchPosts(q, searchCount);
       setSearchResult(res);
     } catch {
       setSearchResult({ posts: [], trends: [], raw_output: "", error: "Request failed" });
@@ -206,17 +203,19 @@ export default function ResearchPage() {
     }
   }, [searchQuery, searchCount]);
 
-  const handleTrending = useCallback(async () => {
-    setTrendLoading(true);
-    try {
-      const res = await getTrending();
-      setTrendResult(res);
-    } catch {
-      setTrendResult({ posts: [], trends: [], raw_output: "", error: "Request failed" });
-    } finally {
-      setTrendLoading(false);
+  // When pendingSearchRef is set and searchQuery updates, trigger search
+  useEffect(() => {
+    if (pendingSearchRef.current && searchQuery) {
+      pendingSearchRef.current = false;
+      handleSearch(searchQuery);
     }
-  }, []);
+  }, [searchQuery, handleSearch]);
+
+  const handleTrendClick = (trend: XTrend) => {
+    pendingSearchRef.current = true;
+    setSearchQuery(trend.name);
+    setActiveTab("discover");
+  };
 
   const handleUserLookup = useCallback(async () => {
     if (!userHandle.trim()) return;
@@ -230,17 +229,6 @@ export default function ResearchPage() {
       setUserLoading(false);
     }
   }, [userHandle, userCount]);
-
-  const handleTrendClick = (trend: XTrend) => {
-    setSearchQuery(trend.name);
-    setActiveTab("search");
-  };
-
-  useEffect(() => {
-    if (activeTab === "trending" && !trendResult && !trendLoading) {
-      handleTrending();
-    }
-  }, [activeTab, trendResult, trendLoading, handleTrending]);
 
   const renderPosts = (posts: XPost[]) => (
     <div className="space-y-3">
@@ -268,21 +256,14 @@ export default function ResearchPage() {
         </div>
       );
     }
-    if (result.posts.length === 0 && result.trends.length === 0) {
+    if (result.posts.length === 0) {
       return (
         <p className="text-sm text-muted-foreground py-4">No results found.</p>
       );
     }
     return (
       <div className="space-y-4">
-        {result.posts.length > 0 && renderPosts(result.posts)}
-        {result.trends.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {result.trends.map((t, i) => (
-              <TrendCard key={i} trend={t} onClick={() => handleTrendClick(t)} />
-            ))}
-          </div>
-        )}
+        {renderPosts(result.posts)}
         {showRaw && result.raw_output && (
           <Card>
             <CardHeader>
@@ -300,9 +281,7 @@ export default function ResearchPage() {
   };
 
   const currentResult =
-    activeTab === "search" ? searchResult :
-    activeTab === "trending" ? trendResult :
-    userResult;
+    activeTab === "discover" ? searchResult : userResult;
 
   return (
     <div className="space-y-6">
@@ -331,13 +310,9 @@ export default function ResearchPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="search" className="gap-1.5">
+          <TabsTrigger value="discover" className="gap-1.5">
             <Search className="h-3.5 w-3.5" />
-            Search Posts
-          </TabsTrigger>
-          <TabsTrigger value="trending" className="gap-1.5">
-            <TrendingUp className="h-3.5 w-3.5" />
-            Trending
+            Discover
           </TabsTrigger>
           <TabsTrigger value="account" className="gap-1.5">
             <User className="h-3.5 w-3.5" />
@@ -345,10 +320,10 @@ export default function ResearchPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="search" className="space-y-4">
+        <TabsContent value="discover" className="space-y-4">
           <div className="flex gap-2">
             <Input
-              placeholder="Search X posts..."
+              placeholder="Search trending posts..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -363,25 +338,47 @@ export default function ResearchPage() {
                 <option key={n} value={n}>{n} results</option>
               ))}
             </select>
-            <Button onClick={handleSearch} disabled={searchLoading || !searchQuery.trim()}>
+            <Button onClick={() => handleSearch()} disabled={searchLoading || !searchQuery.trim()}>
               {searchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               Search
             </Button>
           </div>
-          {renderResult(searchResult, searchLoading)}
-        </TabsContent>
 
-        <TabsContent value="trending" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Click a trend to search for related posts.
-            </p>
-            <Button variant="outline" size="sm" onClick={handleTrending} disabled={trendLoading}>
-              {trendLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Refresh
+          {/* Trending badges */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Flame className="h-4 w-4 text-orange-500 shrink-0" />
+            {trendsLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            ) : trends.length > 0 ? (
+              trends.map((trend, i) => (
+                <Badge
+                  key={i}
+                  variant="secondary"
+                  className="cursor-pointer hover:bg-accent transition-colors text-xs"
+                  onClick={() => handleTrendClick(trend)}
+                >
+                  {trend.name}
+                  {trend.tweet_count && (
+                    <span className="ml-1 text-muted-foreground">{trend.tweet_count}</span>
+                  )}
+                </Badge>
+              ))
+            ) : (
+              <span className="text-xs text-muted-foreground">No trends loaded</span>
+            )}
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={fetchTrending}
+              disabled={trendsLoading}
+              title="Refresh trends"
+              className="ml-auto"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${trendsLoading ? "animate-spin" : ""}`} />
             </Button>
           </div>
-          {renderResult(trendResult, trendLoading)}
+
+          {renderResult(searchResult, searchLoading)}
         </TabsContent>
 
         <TabsContent value="account" className="space-y-4">
