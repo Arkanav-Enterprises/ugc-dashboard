@@ -113,3 +113,57 @@ class ScheduleUpdateRequest(BaseModel):
     text_pipeline_enabled: Optional[bool] = None
     video_personas: Optional[dict[str, dict]] = None
     text_accounts: Optional[dict[str, dict]] = None
+
+
+# ─── YouTube Research models ────────────────────────
+
+class YTChannelScanRequest(BaseModel):
+    channel_url: str
+    max_videos: int = 20
+
+
+class YTVideoInfo(BaseModel):
+    video_id: str
+    title: str
+    duration: Optional[float] = None
+    thumbnail: Optional[str] = None
+    view_count: Optional[int] = None
+    upload_date: Optional[str] = None
+
+
+class YTChannelScanResult(BaseModel):
+    channel_name: str
+    channel_url: str
+    videos: list[YTVideoInfo]
+
+
+class YTAnalyzeRequest(BaseModel):
+    channel_name: str
+    channel_url: str
+    video_ids: list[str]
+    video_titles: dict[str, str] = {}
+
+
+class YTVideoSummary(BaseModel):
+    video_id: str
+    title: str
+    has_transcript: bool
+    summary: Optional[str] = None
+    key_points: list[str] = []
+    error: Optional[str] = None
+
+
+class YTResearchResult(BaseModel):
+    id: str
+    channel_name: str
+    channel_url: str
+    created_at: str
+    video_summaries: list[YTVideoSummary]
+    cross_analysis: str = ""
+
+
+class YTResearchListItem(BaseModel):
+    id: str
+    channel_name: str
+    created_at: str
+    video_count: int

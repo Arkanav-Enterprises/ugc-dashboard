@@ -284,3 +284,123 @@ export interface ScheduleUpdateRequest {
   video_personas?: Record<string, { enabled?: boolean; video_type?: string }>;
   text_accounts?: Record<string, { enabled?: boolean }>;
 }
+
+// ─── YouTube Research ────────────────────────────────
+
+export interface YTVideoInfo {
+  video_id: string;
+  title: string;
+  duration: number | null;
+  thumbnail: string | null;
+  view_count: number | null;
+  upload_date: string | null;
+}
+
+export interface YTChannelScanResult {
+  channel_name: string;
+  channel_url: string;
+  videos: YTVideoInfo[];
+}
+
+export interface YTVideoSummary {
+  video_id: string;
+  title: string;
+  has_transcript: boolean;
+  summary: string | null;
+  key_points: string[];
+  error: string | null;
+}
+
+export interface YTResearchResult {
+  id: string;
+  channel_name: string;
+  channel_url: string;
+  created_at: string;
+  video_summaries: YTVideoSummary[];
+  cross_analysis: string;
+}
+
+export interface YTResearchListItem {
+  id: string;
+  channel_name: string;
+  created_at: string;
+  video_count: number;
+}
+
+export async function scanYTChannel(channelUrl: string, maxVideos: number = 20) {
+  return fetchAPI<YTChannelScanResult>("/api/research/scan", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ channel_url: channelUrl, max_videos: maxVideos }),
+  });
+}
+
+export async function streamYTAnalysis(
+  channelName: string,
+  channelUrl: string,
+  videoIds: string[],
+  videoTitles: Record<string, string>,
+  onEvent: (event: Record<string, unknown>) => void,
+  onDone: () => void,
+  onError: (err: string) => void
+) {
+  const res = await fetch(`${API_BASE}/api/research/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      channel_name: channelName,
+      channel_url: channelUrl,
+      video_ids: videoIds,
+      video_titles: videoTitles,
+    }),
+  });
+
+  if (!res.ok) {
+    onError(`API error: ${res.status}`);
+    return;
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) {
+    onError("No response body");
+    return;
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        const data = line.slice(6);
+        if (data === "[DONE]") {
+          onDone();
+          return;
+        }
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.type === "error") onError(parsed.content);
+          else onEvent(parsed);
+        } catch {
+          // skip malformed lines
+        }
+      }
+    }
+  }
+  onDone();
+}
+
+export async function listYTResearch() {
+  return fetchAPI<YTResearchListItem[]>("/api/research/results");
+}
+
+export async function getYTResearch(id: string) {
+  return fetchAPI<YTResearchResult>(`/api/research/results/${id}`);
+}

@@ -19,6 +19,7 @@ VIDEO_OUTPUT_DIR = PROJECT_ROOT / "video_output"
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 REF_IMAGES_DIR = ASSETS_DIR / "reference-images"
 
+RESEARCH_OUTPUT_DIR = PROJECT_ROOT / "output" / "research"
 SCHEDULE_CONFIG = PROJECT_ROOT / "config" / "schedule.json"
 JSONL_PATH = LOGS_DIR / "video_autopilot.jsonl"
 DAILY_SPEND_PATH = LOGS_DIR / "daily_spend.json"
