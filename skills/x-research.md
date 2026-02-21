@@ -1,33 +1,37 @@
-# X/Twitter Research — Skill Guide
+# Trend Research — Skill Guide
 
-> **INSTRUCTIONS FOR CLAUDE**: Use this skill when researching content trends on X/Twitter.
-> The dashboard has an X Research page at `/research` that wraps the `bird` CLI.
-> Insights saved there go to `memory/x-trends.md` — always check that file before generating content.
+> **Status:** X/Twitter research was removed (Feb 2026) — twscrape and bird CLI are broken.
+> Replaced by **YouTube + Reddit research** on the dashboard at `/research`.
+
+## Current Research Sources
+
+### YouTube Channel Analysis
+1. Scan a channel for recent videos
+2. Fetch transcripts, summarize each with Claude
+3. Cross-video theme analysis to spot patterns and opportunities
+
+### Reddit Thread Analysis
+1. Search Reddit by topic (optionally filter by subreddit, time range)
+2. Fetch top comments, summarize each thread with Claude
+3. Cross-thread theme analysis to spot sentiment, pain points, and content angles
 
 ## Research Workflow
 
-1. **Browse trending topics** — Use the Trending tab to see what's currently viral
-2. **Search by keyword** — Search for terms in our niche: manifestation, screen time, habit tracking, self-improvement, daily affirmations
-3. **Study top accounts** — Look up accounts in our space to see what formats and hooks they're using
-4. **Save what's useful** — Use "Save to Trends" on any post worth referencing later
-5. **Apply to content** — Before generating hooks, check `memory/x-trends.md` for current trends
+1. Open `/research` on the dashboard
+2. Pick a source tab (YouTube or Reddit)
+3. Search for topics in our niche: manifestation, screen time, habit tracking, self-improvement, journaling
+4. Select relevant videos/threads and run analysis
+5. Review cross-source analysis for content patterns and hooks
+6. Apply insights to content generation — check past research in the "Past Research" panel
 
 ## What to Look For
 
-- **Format patterns**: How are viral posts structured? (e.g., "Day X of..." threads, hot take + proof, before/after)
-- **Hook language**: What specific words or phrases are driving engagement right now?
-- **Engagement ratios**: High reply-to-like ratio = controversial. High RT-to-like ratio = shareable. High like-to-RT ratio = relatable.
-- **Cross-platform potential**: Posts with high saves/bookmarks often translate well to TikTok/Reels
-
-## Key Accounts to Monitor
-
-<!-- Add handles you want to check regularly -->
-<!-- Format: @handle — why they matter -->
+- **Format patterns**: What content structures get engagement? (listicles, hot takes, personal stories)
+- **Hook language**: What specific words or phrases drive engagement?
+- **Community sentiment**: What do people complain about, love, or wish existed?
+- **Content gaps**: Topics with lots of discussion but poor content — opportunities for us
+- **Cross-platform potential**: Reddit threads with high engagement often translate to good TikTok/Reels hooks
 
 ## Integration with Content Pipeline
 
-The content generation pipeline reads `memory/x-trends.md` during hook generation.
-When you save a trend or post from the dashboard, it gets appended to that file.
-The bot then uses those entries as inspiration for its next content batch.
-
-Loop: Browse X → Save insights → Bot reads trends → Generate content → Post → Measure → Repeat
+Research results are saved to `output/research/` as JSON files. Each result includes per-item summaries and a cross-source analysis. Use these to inform hook generation and content strategy.

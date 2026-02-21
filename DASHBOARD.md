@@ -57,12 +57,17 @@ ugc-dashboard/
     │   │   ├── content.py      ← /api/content/* endpoints
     │   │   ├── knowledge.py    ← /api/knowledge/* endpoints
     │   │   ├── logs.py         ← /api/logs/* endpoints
-    │   │   └── pipeline.py     ← /api/pipeline/* endpoints
+    │   │   ├── pipeline.py     ← /api/pipeline/* endpoints
+    │   │   ├── schedule.py     ← /api/schedule/* endpoints
+    │   │   ├── youtube_research.py ← /api/research/* (YT scan + analyze)
+    │   │   └── reddit_research.py  ← /api/research/reddit/* (search + analyze)
     │   └── services/
     │       ├── claude_chat.py  ← Anthropic streaming chat
     │       ├── log_reader.py   ← Reads pipeline log files
     │       ├── pipeline_runner.py ← Runs pipeline scripts as subprocesses
-    │       └── skill_loader.py ← Loads skill/memory files for context
+    │       ├── skill_loader.py ← Loads skill/memory files for context
+    │       ├── youtube_research.py ← YT channel scanning, transcript fetch, Claude analysis
+    │       └── reddit_research.py  ← Reddit search, comment fetch, Claude analysis
     └── frontend/               ← Next.js (deployed to Vercel)
         ├── next.config.ts      ← API proxy rewrites (BACKEND_URL)
         ├── package.json
@@ -73,6 +78,8 @@ ugc-dashboard/
             │   ├── pipeline/       ← Pipeline Monitor (read-only)
             │   ├── chat/           ← Agent Chat + Action buttons
             │   ├── knowledge/      ← Knowledge Base editor
+            │   ├── research/       ← Trend Research (YouTube + Reddit)
+            │   ├── schedule/       ← Schedule manager
             │   ├── assets/         ← Asset Manager
             │   └── logs/           ← Logs viewer
             ├── components/
@@ -95,6 +102,8 @@ ugc-dashboard/
 | **Pipeline Monitor** | `/pipeline` | View run history with expandable details, cost trend chart, search runs |
 | **Agent Chat** | `/chat` | Chat with Claude using skill/memory context + action buttons to trigger pipeline runs (see below) |
 | **Knowledge Base** | `/knowledge` | View and edit skill files and memory files that feed into content generation |
+| **Trend Research** | `/research` | Analyze YouTube channels or Reddit threads — fetch transcripts/comments, summarize with Claude, run cross-source theme analysis |
+| **Schedule** | `/schedule` | View and toggle the daily cron schedule for video and text pipelines |
 | **Asset Manager** | `/assets` | Browse reference images, clips, screen recordings, and asset usage history |
 | **Logs** | `/logs` | View raw pipeline logs and run history |
 
@@ -153,6 +162,50 @@ These are the same skill and memory files that the pipeline's `autopilot_video.p
 ### Streaming
 
 Chat responses stream in real-time via SSE (Server-Sent Events). The backend calls Claude's streaming API (`claude-sonnet-4-5-20250929`) and forwards each text chunk to the frontend as it arrives. For local development, a WebSocket endpoint is also available at `/api/chat/ws`.
+
+---
+
+## Trend Research Page
+
+The `/research` page supports two research sources, selectable via tabs:
+
+### YouTube
+
+1. Paste a YouTube channel URL and choose how many videos to scan
+2. `yt-dlp` fetches the channel's video metadata (title, views, duration, thumbnail)
+3. Select which videos to analyze
+4. For each selected video, `youtube-transcript-api` fetches the transcript (with optional proxy)
+5. Claude summarizes each transcript (key points + summary)
+6. Claude runs a cross-video theme analysis (streaming via SSE)
+7. Result saved to `output/research/{id}.json` with `source: "youtube"`
+
+### Reddit
+
+1. Enter a search query + optional subreddit filter, time range, and thread count
+2. Backend hits Reddit's public JSON API (`reddit.com/search.json`) — no API key needed
+3. Select which threads to analyze from the scored/ranked results
+4. For each selected thread, backend fetches top comments via `reddit.com{permalink}.json`
+5. Claude summarizes each thread's discussion (key points + summary + sentiment)
+6. Claude runs a cross-thread theme analysis (streaming via SSE)
+7. Result saved to `output/research/{id}.json` with `source: "reddit"`
+
+### Shared
+
+- Both sources use the same SSE streaming pattern and progress UI
+- Past results list shows a "YouTube" or "Reddit" badge per entry
+- Results are stored in the same directory and listed together
+- Reddit requires a `User-Agent` header (`OpenClaw/1.0`) — no API keys
+
+### API Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/research/scan` | POST | Scan YouTube channel for videos |
+| `/api/research/analyze` | POST | SSE stream YouTube video analysis |
+| `/api/research/reddit/search` | POST | Search Reddit for threads |
+| `/api/research/reddit/analyze` | POST | SSE stream Reddit thread analysis |
+| `/api/research/results` | GET | List all saved research (both sources) |
+| `/api/research/results/{id}` | GET | Get a specific saved result |
 
 ---
 
