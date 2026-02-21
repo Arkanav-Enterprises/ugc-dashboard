@@ -27,21 +27,25 @@ def _get_twscrape_api():
     if _twscrape_api is not None:
         return _twscrape_api
 
+    from pathlib import Path
     from twscrape import API
+
+    db_path = Path(str(TWSCRAPE_DB))
+
+    # Delete stale DB from prior (broken) twscrape 0.17 installs so we
+    # get a clean account entry with the new version's schema.
+    if db_path.exists():
+        db_path.unlink()
 
     _twscrape_api = API(str(TWSCRAPE_DB))
 
     if BIRD_AUTH_TOKEN and BIRD_CT0:
         async def _add():
             cookies = f"auth_token={BIRD_AUTH_TOKEN}; ct0={BIRD_CT0}"
-            try:
-                await _twscrape_api.pool.add_account(
-                    "main", "", "", "",
-                    cookies=cookies,
-                )
-            except Exception:
-                # Account already exists — that's fine
-                pass
+            await _twscrape_api.pool.add_account(
+                "main", "", "", "",
+                cookies=cookies,
+            )
         asyncio.run(_add())
 
     return _twscrape_api
