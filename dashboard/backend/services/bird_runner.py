@@ -4,7 +4,9 @@ import json
 import subprocess
 from datetime import date
 
-from config import BIRD_CLI, MEMORY_DIR
+import os
+
+from config import BIRD_CLI, BIRD_AUTH_TOKEN, BIRD_CT0, MEMORY_DIR
 from models import ResearchResult, SaveInsightRequest, XPost, XTrend
 
 X_TRENDS_PATH = MEMORY_DIR / "x-trends.md"
@@ -22,11 +24,22 @@ def check_bird_available() -> dict:
         return {"available": False, "version": ""}
 
 
+def _bird_env() -> dict[str, str]:
+    """Build env dict with bird auth credentials."""
+    env = os.environ.copy()
+    if BIRD_AUTH_TOKEN:
+        env["AUTH_TOKEN"] = BIRD_AUTH_TOKEN
+    if BIRD_CT0:
+        env["CT0"] = BIRD_CT0
+    return env
+
+
 def _run_bird(args: list[str]) -> tuple[str, str]:
     """Run bird with the given args and return (stdout, stderr)."""
     cmd = [str(BIRD_CLI)] + args
     proc = subprocess.run(
         cmd, capture_output=True, text=True, timeout=30,
+        env=_bird_env(),
     )
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.strip() or f"bird exited with code {proc.returncode}")

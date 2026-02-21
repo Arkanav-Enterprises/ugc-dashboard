@@ -29,6 +29,8 @@ PROJECT_VENV_PYTHON = _venv_python if _venv_python.exists() else Path(shutil.whi
 DAILY_COST_CAP = float(os.environ.get("DAILY_COST_CAP", "5.00"))
 
 BIRD_CLI = Path(shutil.which("bird") or os.environ.get("BIRD_CLI", "/usr/local/bin/bird"))
+BIRD_AUTH_TOKEN = os.environ.get("BIRD_AUTH_TOKEN", "")
+BIRD_CT0 = os.environ.get("BIRD_CT0", "")
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
