@@ -139,12 +139,12 @@ These are the same skill and memory files that the pipeline's `autopilot_video.p
 
 ### How context injection works
 
-1. You check the files you want Claude to reference (3 skills + 2 memory files are pre-selected by default)
+1. You check the files you want Claude to reference (5 skills + 3 memory files are pre-selected by default)
 2. When you send a message, the frontend sends the selected file names along with your chat history
 3. The backend reads the full content of each selected file from disk
 4. The file contents are injected into Claude's **system prompt** as structured context:
    ```
-   === SKILL: content-strategy.md ===
+   === SKILL: INDEX.md ===
    (full file content)
 
    === MEMORY: post-performance.md ===
@@ -152,12 +152,42 @@ These are the same skill and memory files that the pipeline's `autopilot_video.p
    ```
 5. Claude responds with awareness of your content strategy, past performance data, etc.
 
-### Default selections
+More checkboxes = more context for Claude, but also more tokens per request. Toggle based on what you're asking about.
 
-| Type | Default files |
-|------|--------------|
-| Skills | `content-strategy.md`, `manifest-lock-knowledge.md`, `tiktok-slideshows.md` |
-| Memory | `post-performance.md`, `failure-log.md` |
+### Agent Chat defaults vs Pipeline context
+
+The Agent Chat and the video pipeline (`autopilot_video.py`) load **different subsets** of the same skill/memory files:
+
+| | Agent Chat (defaults) | Pipeline (`autopilot_video.py`) |
+|---|---|---|
+| **Skills loaded** | 5 | 9 (persona-specific) |
+| **Memory loaded** | 3 | 4 |
+| **Persona-aware** | No (manual checkbox) | Yes (auto-selects per persona) |
+
+**Agent Chat defaults** (lighter — for general Q&A):
+
+| Type | Files |
+|------|-------|
+| Skills | `INDEX.md`, `manifest-lock.md`, `content/content-mix.md`, `content/hook-architecture.md`, `content/what-never-works.md` |
+| Memory | `post-performance.md`, `failure-log.md`, `x-trends.md` |
+
+**Pipeline context** (heavier — for content generation, per persona):
+
+| Type | Files |
+|------|-------|
+| Skills | `INDEX.md`, `{app}.md` (manifest-lock or journal-lock), `personas/{persona}.md`, `content/content-mix.md`, `content/hook-architecture.md`, `content/text-overlays.md`, `content/caption-formulas.md`, `content/what-never-works.md`, `analytics/proven-hooks.md` |
+| Memory | `post-performance.md`, `failure-log.md`, `asset-usage.md`, `x-trends.md` |
+
+**What the pipeline loads that chat doesn't (by default):**
+- `personas/{persona}.md` — voice, tone, and look for the specific persona
+- `content/text-overlays.md` — patterns for POV and reaction text on video clips
+- `content/caption-formulas.md` — caption structures, CTA patterns, hashtag rules
+- `analytics/proven-hooks.md` — hooks that actually performed well
+- `asset-usage.md` — tracks which assets have been used to avoid repeats
+
+The pipeline also dynamically picks the right app file (`manifest-lock.md` for Sophie, `journal-lock.md` for Sanya) and the right persona file. In Agent Chat, you'd need to manually check those boxes if you want that context.
+
+**Tip:** When using Agent Chat to generate content for a specific persona, check that persona's file + `text-overlays.md` + `caption-formulas.md` + `proven-hooks.md` to match what the pipeline would see.
 
 ### Streaming
 
