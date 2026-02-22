@@ -209,3 +209,32 @@ class RedditThreadSummary(BaseModel):
     key_points: list[str] = []
     sentiment: Optional[str] = None
     error: Optional[str] = None
+
+
+# ─── Opportunity Scout models ─────────────────────
+
+class ScoutRunRequest(BaseModel):
+    seeds: list[str]
+    skip_reviews: bool = False
+    skip_reddit: bool = False
+
+
+class ScoutExpandSeedsRequest(BaseModel):
+    seeds: list[str]
+
+
+class ScoutApp(BaseModel):
+    track_id: int
+    name: str
+    developer: str
+    rating: Optional[float] = None
+    review_count: Optional[int] = None
+    genre: str = ""
+    icon_url: str = ""
+
+
+class ScoutResultListItem(BaseModel):
+    id: str
+    seeds: list[str]
+    app_count: int
+    created_at: str

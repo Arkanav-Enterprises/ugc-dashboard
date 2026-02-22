@@ -406,6 +406,112 @@ export async function getYTResearch(id: string) {
   return fetchAPI<YTResearchResult>(`/api/research/results/${id}`);
 }
 
+// ─── Opportunity Scout ──────────────────────────────
+
+export interface ScoutApp {
+  track_id: number;
+  name: string;
+  developer: string;
+  rating: number | null;
+  review_count: number | null;
+  genre: string;
+  icon_url: string;
+}
+
+export interface ScoutResultListItem {
+  id: string;
+  seeds: string[];
+  app_count: number;
+  created_at: string;
+}
+
+export interface ScoutResult {
+  id: string;
+  seeds: string[];
+  keywords: string[];
+  apps: ScoutApp[];
+  reviews: Record<string, { author: string; rating: number; title: string; content: string }[]>;
+  reddit: Record<string, { thread_id: string; title: string; subreddit: string; score: number; selftext_preview: string }[]>;
+  analysis: string;
+  created_at: string;
+}
+
+export async function expandSeeds(seeds: string[]): Promise<{ keywords: string[] }> {
+  return fetchAPI<{ keywords: string[] }>("/api/scout/expand-seeds", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ seeds }),
+  });
+}
+
+export async function streamScout(
+  seeds: string[],
+  skipReviews: boolean,
+  skipReddit: boolean,
+  onEvent: (event: Record<string, unknown>) => void,
+  onDone: () => void,
+  onError: (err: string) => void
+) {
+  const res = await fetch(`${API_BASE}/api/scout/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      seeds,
+      skip_reviews: skipReviews,
+      skip_reddit: skipReddit,
+    }),
+  });
+
+  if (!res.ok) {
+    onError(`API error: ${res.status}`);
+    return;
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) {
+    onError("No response body");
+    return;
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        const data = line.slice(6);
+        if (data === "[DONE]") {
+          onDone();
+          return;
+        }
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.type === "error") onError(parsed.content);
+          else onEvent(parsed);
+        } catch {
+          // skip malformed lines
+        }
+      }
+    }
+  }
+  onDone();
+}
+
+export async function listScoutResults(): Promise<ScoutResultListItem[]> {
+  return fetchAPI<ScoutResultListItem[]>("/api/scout/results");
+}
+
+export async function getScoutResult(id: string): Promise<ScoutResult> {
+  return fetchAPI<ScoutResult>(`/api/scout/results/${id}`);
+}
+
 // ─── Reddit Research ─────────────────────────────────
 
 export interface RedditThread {
