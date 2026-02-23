@@ -486,7 +486,7 @@ Generate fresh, non-repetitive content. Avoid hooks from memory files."""
         },
         json={
             "model": ANTHROPIC_MODEL,
-            "max_tokens": 500,
+            "max_tokens": 1024,
             "system": system,
             "messages": [{"role": "user", "content": user_msg}],
         },
