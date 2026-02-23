@@ -25,6 +25,7 @@ import json
 import logging
 import os
 import random
+import re
 import requests
 import smtplib
 import subprocess
@@ -499,7 +500,23 @@ Generate fresh, non-repetitive content. Avoid hooks from memory files."""
     if raw.endswith("```"):
         raw = raw.rsplit("```", 1)[0]
 
-    result = json.loads(raw.strip())
+    try:
+        result = json.loads(raw.strip())
+    except json.JSONDecodeError:
+        # Claude sometimes produces unescaped quotes inside string values.
+        # Extract fields with regex as a fallback.
+        log.warning("JSON parse failed, attempting regex extraction...")
+        def _extract(key: str) -> str:
+            m = re.search(rf'"{key}"\s*:\s*"((?:[^"\\]|\\.)*)"', raw)
+            return m.group(1) if m else ""
+        result = {
+            "hook_text": _extract("hook_text"),
+            "reaction_text": _extract("reaction_text"),
+            "caption": _extract("caption"),
+            "content_angle": _extract("content_angle") or "discovery",
+        }
+        if not result["hook_text"]:
+            raise ValueError(f"Could not extract hook_text from Claude response: {raw[:200]}")
     log.info(f"Hook:     {result['hook_text']}")
     log.info(f"Reaction: {result['reaction_text']}")
     log.info(f"Angle:    {result.get('content_angle', 'unknown')}")
