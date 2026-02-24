@@ -36,7 +36,7 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
 
 OUTREACH_OUTPUT_DIR = PROJECT_ROOT / "output" / "outreach"
-OUTREACH_DEFAULT_HOST = "smtp.gmail.com"
+OUTREACH_DEFAULT_HOST = "smtp.zoho.com"
 OUTREACH_DEFAULT_PORT = 587
 
 import json as _json

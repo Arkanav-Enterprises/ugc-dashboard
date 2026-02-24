@@ -116,7 +116,7 @@ def send_one_email(
     body: str,
     from_name: str | None = None,
 ) -> None:
-    """Send a single email via SMTP + STARTTLS (Gmail app password)."""
+    """Send a single email via SMTP + STARTTLS."""
     msg = MIMEMultipart("alternative")
     from_addr = account["email"]
     if from_name:
@@ -129,7 +129,11 @@ def send_one_email(
     # Send as plain text
     msg.attach(MIMEText(body, "plain"))
 
-    with smtplib.SMTP(OUTREACH_DEFAULT_HOST, OUTREACH_DEFAULT_PORT) as server:
+    # Per-account host/port override, falls back to global defaults
+    host = account.get("smtp_host", OUTREACH_DEFAULT_HOST)
+    port = int(account.get("smtp_port", OUTREACH_DEFAULT_PORT))
+
+    with smtplib.SMTP(host, port) as server:
         server.starttls()
         server.login(from_addr, account["app_password"])
         server.sendmail(from_addr, to, msg.as_string())
