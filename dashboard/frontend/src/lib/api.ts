@@ -559,6 +559,122 @@ export async function searchReddit(
   });
 }
 
+// ─── Mass Outreach ──────────────────────────────────
+
+export interface OutreachAccount {
+  label: string;
+  email: string;
+}
+
+export interface OutreachEmail {
+  index: number;
+  to: string;
+  subject: string;
+  body: string;
+  skip: boolean;
+  skip_reason: string | null;
+}
+
+export interface OutreachBatchListItem {
+  id: string;
+  account: string;
+  created_at: string;
+  sent: number;
+  failed: number;
+  total: number;
+}
+
+export interface OutreachBatchResult {
+  id: string;
+  account: string;
+  created_at: string;
+  results: (OutreachEmail & { status: string; error?: string })[];
+  sent: number;
+  failed: number;
+}
+
+export async function getOutreachAccounts() {
+  return fetchAPI<OutreachAccount[]>("/api/outreach/accounts");
+}
+
+export async function parseOutreachMarkdown(markdown: string) {
+  return fetchAPI<{ emails: OutreachEmail[] }>("/api/outreach/parse", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ markdown }),
+  });
+}
+
+export async function streamOutreachSend(
+  emails: OutreachEmail[],
+  accountLabel: string,
+  delaySeconds: number,
+  fromName: string | null,
+  onEvent: (event: Record<string, unknown>) => void,
+  onDone: () => void,
+  onError: (err: string) => void
+) {
+  const res = await fetch(`${API_BASE}/api/outreach/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      emails,
+      account_label: accountLabel,
+      delay_seconds: delaySeconds,
+      from_name: fromName || null,
+    }),
+  });
+
+  if (!res.ok) {
+    onError(`API error: ${res.status}`);
+    return;
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) {
+    onError("No response body");
+    return;
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        const data = line.slice(6);
+        if (data === "[DONE]") {
+          onDone();
+          return;
+        }
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.type === "error") onError(parsed.content);
+          else onEvent(parsed);
+        } catch {
+          // skip malformed lines
+        }
+      }
+    }
+  }
+  onDone();
+}
+
+export async function getOutreachHistory() {
+  return fetchAPI<OutreachBatchListItem[]>("/api/outreach/history");
+}
+
+export async function getOutreachBatch(id: string) {
+  return fetchAPI<OutreachBatchResult>(`/api/outreach/history/${id}`);
+}
+
 export async function streamRedditAnalysis(
   query: string,
   threads: RedditThread[],

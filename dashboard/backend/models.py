@@ -238,3 +238,23 @@ class ScoutResultListItem(BaseModel):
     seeds: list[str]
     app_count: int
     created_at: str
+
+
+# ─── Outreach models ──────────────────────────────
+
+class OutreachEmail(BaseModel):
+    index: int
+    to: str
+    subject: str
+    body: str
+    skip: bool = False
+    skip_reason: Optional[str] = None
+
+class OutreachParseRequest(BaseModel):
+    markdown: str
+
+class OutreachSendRequest(BaseModel):
+    emails: list[OutreachEmail]
+    account_label: str
+    delay_seconds: int = 45
+    from_name: Optional[str] = None

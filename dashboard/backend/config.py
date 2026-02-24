@@ -35,6 +35,17 @@ DAILY_COST_CAP = float(os.environ.get("DAILY_COST_CAP", "5.00"))
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
 
+OUTREACH_OUTPUT_DIR = PROJECT_ROOT / "output" / "outreach"
+OUTREACH_DEFAULT_HOST = "smtp.gmail.com"
+OUTREACH_DEFAULT_PORT = 587
+
+import json as _json
+_raw_accounts = os.environ.get("OUTREACH_ACCOUNTS", "[]")
+try:
+    OUTREACH_ACCOUNTS: list[dict] = _json.loads(_raw_accounts)
+except _json.JSONDecodeError:
+    OUTREACH_ACCOUNTS = []
+
 PERSONAS = ["sanya", "sophie", "aliyah", "olivia"]
 PERSONA_COLORS = {
     "sanya": "#ef4444",   # warm red

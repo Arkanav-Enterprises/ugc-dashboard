@@ -13,6 +13,7 @@ import {
   FileText,
   TrendingUp,
   Search,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./theme-toggle";
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: "/schedule", label: "Schedule", icon: Calendar },
   { href: "/research", label: "Trend Research", icon: TrendingUp },
   { href: "/scout", label: "Opportunity Scout", icon: Search },
+  { href: "/outreach", label: "Outreach", icon: Mail },
   { href: "/chat", label: "Agent Chat", icon: MessageSquare },
   { href: "/knowledge", label: "Knowledge Base", icon: BookOpen },
   { href: "/assets", label: "Asset Manager", icon: Image },
