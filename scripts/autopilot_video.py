@@ -697,13 +697,19 @@ def send_notification(subject, body):
 
 # ─── Main ────────────────────────────────────────────
 
-def run_persona(persona_name, dry_run=False, no_upload=False, skip_gen=False, video_type=None):
+def run_persona(persona_name, dry_run=False, no_upload=False, skip_gen=False, video_type=None, app_filter=None):
     """Run the full pipeline for a single persona. Multi-app personas generate one reel per app."""
     if video_type is None:
         # Check for persona-specific video_type override before daily rotation
         video_type = PERSONAS[persona_name].get("video_type") or pick_video_type()
     log.info(f"Video type: {video_type} (day {datetime.now().timetuple().tm_yday})")
     apps = PERSONAS[persona_name]["apps"]
+    if app_filter:
+        apps = [(name, d) for name, d in apps if d == app_filter]
+        if not apps:
+            available = [d for _, d in PERSONAS[persona_name]["apps"]]
+            log.error(f"App '{app_filter}' not available for {persona_name}. Options: {available}")
+            return
     for app_name, screen_rec_dir in apps:
         _run_persona_for_app(persona_name, app_name, screen_rec_dir, dry_run, no_upload, skip_gen, video_type)
 
@@ -830,6 +836,8 @@ if __name__ == "__main__":
     parser.add_argument("--dry-run", action="store_true", help="Plan only, skip generation")
     parser.add_argument("--no-upload", action="store_true", help="Build but skip Drive upload")
     parser.add_argument("--skip-gen", action="store_true", help="Use existing clips, skip Replicate")
+    parser.add_argument("--app", choices=["manifest-lock", "journal-lock"],
+                        help="Run only this app (useful for multi-app personas like aliyah)")
     args = parser.parse_args()
 
     # Resolve video type: CLI override or daily rotation
@@ -850,4 +858,4 @@ if __name__ == "__main__":
             parser.error(f"Unknown persona: {args.persona}")
         personas = [args.persona]
     for p in personas:
-        run_persona(p, dry_run=args.dry_run, no_upload=args.no_upload, skip_gen=args.skip_gen, video_type=video_type)
+        run_persona(p, dry_run=args.dry_run, no_upload=args.no_upload, skip_gen=args.skip_gen, video_type=video_type, app_filter=args.app)
