@@ -209,32 +209,6 @@ export default function GenerateVideosPage() {
                 )}
               </div>
 
-              {/* Engine selector */}
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Video Engine
-                </label>
-                <div className="flex gap-2">
-                  {[
-                    { id: "veo", label: "Veo 3.1 Fast", desc: "Google — ~$0.60/clip" },
-                    { id: "seedance", label: "Seedance 1.5 Pro", desc: "ByteDance — ~$0.05/clip" },
-                  ].map((eng) => (
-                    <button
-                      key={eng.id}
-                      onClick={() => setEngine(eng.id)}
-                      className={`flex-1 px-3 py-2 text-xs rounded-md border transition-colors text-left ${
-                        engine === eng.id
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "text-muted-foreground hover:bg-accent"
-                      }`}
-                    >
-                      <div className="font-medium">{eng.label}</div>
-                      <div className="opacity-70">{eng.desc}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Option toggles */}
               <div>
                 <label className="text-xs font-medium text-muted-foreground block mb-2">
