@@ -53,3 +53,24 @@ PERSONA_COLORS = {
     "aliyah": "#8b5cf6",  # purple
     "olivia": "#f59e0b",  # amber/gold
 }
+PERSONA_APPS: dict[str, dict] = {
+    "sanya": {
+        "apps": [{"name": "Manifest Lock", "slug": "manifest-lock"}],
+        "video_types": ["original", "ugc_lighting", "outdoor"],
+    },
+    "sophie": {
+        "apps": [{"name": "Journal Lock", "slug": "journal-lock"}],
+        "video_types": ["original", "ugc_lighting", "outdoor"],
+    },
+    "aliyah": {
+        "apps": [
+            {"name": "Manifest Lock", "slug": "manifest-lock"},
+            {"name": "Journal Lock", "slug": "journal-lock"},
+        ],
+        "video_types": ["original", "ugc_lighting", "outdoor"],
+    },
+    "olivia": {
+        "apps": [{"name": "Manifest Lock", "slug": "manifest-lock"}],
+        "video_types": ["olivia_default"],
+    },
+}

@@ -57,9 +57,22 @@ class AssetInfo(BaseModel):
     type: Optional[str] = None
 
 
+class PersonaAppInfo(BaseModel):
+    name: str
+    slug: str
+
+
+class PersonaConfig(BaseModel):
+    persona: str
+    color: str
+    apps: list[PersonaAppInfo]
+    video_types: list[str]
+
+
 class PipelineRunRequest(BaseModel):
     persona: str = "sanya"
     video_type: Optional[str] = None
+    app: Optional[str] = None
     dry_run: bool = False
     no_upload: bool = False
     skip_gen: bool = False
@@ -69,6 +82,7 @@ class PipelineRunStatus(BaseModel):
     id: str
     status: str  # running, completed, failed
     persona: str
+    app: Optional[str] = None
     started_at: str
     output: str = ""
 

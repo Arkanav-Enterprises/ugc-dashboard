@@ -96,6 +96,10 @@ export async function getActiveRuns() {
   return fetchAPI<PipelineRunStatus[]>("/api/pipeline/runs/active");
 }
 
+export async function getPersonaConfigs() {
+  return fetchAPI<PersonaConfig[]>("/api/pipeline/personas");
+}
+
 /**
  * Stream a chat message via SSE (Server-Sent Events).
  * Falls back to WebSocket for local development.
@@ -234,9 +238,22 @@ export interface AssetUsageRow {
   video_type: string;
 }
 
+export interface PersonaAppInfo {
+  name: string;
+  slug: string;
+}
+
+export interface PersonaConfig {
+  persona: string;
+  color: string;
+  apps: PersonaAppInfo[];
+  video_types: string[];
+}
+
 export interface PipelineRunRequest {
   persona: string;
   video_type?: string;
+  app?: string;
   dry_run?: boolean;
   no_upload?: boolean;
   skip_gen?: boolean;
@@ -246,6 +263,7 @@ export interface PipelineRunStatus {
   id: string;
   status: string;
   persona: string;
+  app?: string;
   started_at: string;
   output: string;
 }

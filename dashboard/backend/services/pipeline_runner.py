@@ -21,6 +21,8 @@ def start_pipeline_run(req: PipelineRunRequest) -> PipelineRunStatus:
 
     if req.video_type:
         cmd += ["--video-type", req.video_type]
+    if req.app:
+        cmd += ["--app", req.app]
     if req.dry_run:
         cmd.append("--dry-run")
     if req.no_upload:
@@ -32,6 +34,7 @@ def start_pipeline_run(req: PipelineRunRequest) -> PipelineRunStatus:
         "id": run_id,
         "status": "running",
         "persona": req.persona,
+        "app": req.app,
         "started_at": datetime.now(timezone.utc).isoformat(),
         "output": "",
         "process": None,
@@ -65,6 +68,7 @@ def start_pipeline_run(req: PipelineRunRequest) -> PipelineRunStatus:
         id=run_id,
         status="running",
         persona=req.persona,
+        app=req.app,
         started_at=_runs[run_id]["started_at"],
     )
 
@@ -78,6 +82,7 @@ def get_run_status(run_id: str) -> PipelineRunStatus | None:
         id=run["id"],
         status=run["status"],
         persona=run["persona"],
+        app=run.get("app"),
         started_at=run["started_at"],
         output=run["output"],
     )
@@ -90,6 +95,7 @@ def list_runs() -> list[PipelineRunStatus]:
             id=r["id"],
             status=r["status"],
             persona=r["persona"],
+            app=r.get("app"),
             started_at=r["started_at"],
             output=r["output"][-500:] if r["output"] else "",
         )
