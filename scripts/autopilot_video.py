@@ -299,7 +299,7 @@ def generate_video(image_url, video_prompt, engine="veo"):
                 "input_urls": [image_url],
                 "aspect_ratio": "9:16",
                 "resolution": "720p",
-                "duration": "4",
+                "duration": 4,
                 "generate_audio": False,
                 "fixed_lens": False,
             },
