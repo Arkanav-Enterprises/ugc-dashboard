@@ -60,7 +60,7 @@ export function Sidebar() {
         })}
       </nav>
       <div className="p-3 border-t text-xs text-muted-foreground flex items-center justify-between">
-        <span>3 personas &middot; local</span>
+        <span>4 personas &middot; local</span>
         <ThemeToggle />
       </div>
     </aside>

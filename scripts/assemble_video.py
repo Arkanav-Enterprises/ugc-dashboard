@@ -250,7 +250,6 @@ def assemble(args):
         # Step 1: Process each clip
         hook_out = tmp / "01_hook.mp4"
         screen_out = tmp / "02_screen.mp4"
-        react_out = tmp / "03_reaction.mp4"
 
         ok = process_hook(args.hook_clip, hook_out, args.hook_text, font_path, args.dry_run)
         if not ok:
@@ -262,13 +261,18 @@ def assemble(args):
             print("FAILED: Screen recording processing")
             return None
 
-        ok = process_reaction(args.reaction_clip, react_out, args.reaction_text, font_path, args.dry_run)
-        if not ok:
-            print("FAILED: Reaction clip processing")
-            return None
+        clips_to_concat = [hook_out, screen_out]
+
+        if args.reaction_clip is not None:
+            react_out = tmp / "03_reaction.mp4"
+            ok = process_reaction(args.reaction_clip, react_out, args.reaction_text, font_path, args.dry_run)
+            if not ok:
+                print("FAILED: Reaction clip processing")
+                return None
+            clips_to_concat.append(react_out)
 
         # Step 2: Concatenate
-        ok = concatenate([hook_out, screen_out, react_out], out_path, args.dry_run)
+        ok = concatenate(clips_to_concat, out_path, args.dry_run)
         if not ok:
             print("FAILED: Concatenation")
             return None
@@ -290,9 +294,9 @@ def main():
     )
     parser.add_argument("--hook-clip", required=True, help="Path to hook/opening clip")
     parser.add_argument("--screen-recording", required=True, help="Path to screen recording clip")
-    parser.add_argument("--reaction-clip", required=True, help="Path to closing reaction clip")
+    parser.add_argument("--reaction-clip", required=False, default=None, help="Path to closing reaction clip (optional)")
     parser.add_argument("--hook-text", required=True, help="Text overlay for hook clip (Part 1)")
-    parser.add_argument("--reaction-text", required=True, help="Text overlay for reaction clip (Part 3)")
+    parser.add_argument("--reaction-text", required=False, default=None, help="Text overlay for reaction clip (Part 3, optional)")
     parser.add_argument("--speed", type=float, default=2.5, help="Speed multiplier for screen recording (default: 2.5)")
     parser.add_argument("--output", help="Output file path (default: auto-generated in video_output/)")
     parser.add_argument("--font", help="Path to .ttf font file (default: auto-detect)")
@@ -302,11 +306,13 @@ def main():
     args = parser.parse_args()
 
     # Validate inputs exist
-    for path, label in [
+    inputs_to_check = [
         (args.hook_clip, "Hook clip"),
         (args.screen_recording, "Screen recording"),
-        (args.reaction_clip, "Reaction clip"),
-    ]:
+    ]
+    if args.reaction_clip is not None:
+        inputs_to_check.append((args.reaction_clip, "Reaction clip"))
+    for path, label in inputs_to_check:
         if not Path(path).exists():
             print(f"ERROR: {label} not found: {path}")
             sys.exit(1)
@@ -315,7 +321,7 @@ def main():
     print("Manifest Lock — Video Assembly")
     print("=" * 50)
     print(f"Hook text:     {args.hook_text}")
-    print(f"Reaction text: {args.reaction_text}")
+    print(f"Reaction text: {args.reaction_text or '(none)'}")
     print(f"Screen speed:  {args.speed}x")
     print()
 

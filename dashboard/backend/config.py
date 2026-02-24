@@ -35,9 +35,10 @@ DAILY_COST_CAP = float(os.environ.get("DAILY_COST_CAP", "5.00"))
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
 
-PERSONAS = ["sanya", "sophie", "aliyah"]
+PERSONAS = ["sanya", "sophie", "aliyah", "olivia"]
 PERSONA_COLORS = {
     "sanya": "#ef4444",   # warm red
     "sophie": "#3b82f6",  # blue
     "aliyah": "#8b5cf6",  # purple
+    "olivia": "#f59e0b",  # amber/gold
 }

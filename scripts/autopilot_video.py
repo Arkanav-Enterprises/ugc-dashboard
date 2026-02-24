@@ -125,6 +125,10 @@ PERSONAS = {
     "aliyah": {
         "apps": [("Manifest Lock", "manifest-lock"), ("Journal Lock", "journal-lock")],
     },
+    "olivia": {
+        "apps": [("Manifest Lock", "manifest-lock")],
+        "video_type": "olivia_default",
+    },
 }
 
 
@@ -174,6 +178,22 @@ ACTION AND CAMERA MOTION:
 Keep the same outdoor background throughout. Keep lighting consistent. Keep motion natural and realistic.
 
 STYLE — Naturalistic aesthetic with sharp 4K clarity, vibrant colors. No text overlays or subtitles.""",
+    "olivia_default": """No subtitles. No captions. No music.
+
+The woman in the image must look EXACTLY as she appears — same face, same hair, same clothing, same everything. Do not change anything.
+
+SHOT — Vertical 9:16, medium close-up from waist up. Slow tracking shot following her from the side or slightly behind.
+
+SCENE — Outdoor golden hour, walking along a quiet tree-lined path or park trail. Warm sunlight filtering through leaves. Soft bokeh background.
+
+ACTION AND CAMERA MOTION:
+- 0–1.5s: Walking naturally, calm expression, looking slightly ahead. Hair moves softly with the breeze.
+- 1.5–3.0s: Slight turn toward camera, subtle confident smile, keeps walking.
+- 3.0–4.0s: Looks forward again, peaceful and grounded. Camera holds steady tracking shot.
+
+No talking. No exaggerated expressions. Calm confidence, quiet purpose.
+
+STYLE — Cinematic 4K vertical video. Golden hour color palette, warm amber tones, natural lighting. No text overlays, subtitles, or captions.""",
 }
 
 CLIP_SPLIT_POINTS = {
@@ -188,6 +208,10 @@ CLIP_SPLIT_POINTS = {
     "outdoor": {
         "hook": {"start": 0, "duration": 2.2},
         "reaction": {"start": 2.2, "duration": 1.8},
+    },
+    "olivia_default": {
+        "hook": {"start": 0, "duration": 4},
+        "reaction": None,
     },
 }
 
@@ -205,7 +229,7 @@ def pick_reference_image(persona_name, video_type="original"):
     - ugc_lighting: Single file {persona}-ugc.{png,jpeg,jpg}
     - outdoor: Single file {persona}-outdoor.{png,jpeg,jpg}
     """
-    if video_type == "original":
+    if video_type in ("original", "olivia_default"):
         variants = sorted(
             f for f in REF_IMAGES_DIR.iterdir()
             if f.is_file() and f.name.startswith(f"{persona_name}-v") and f.suffix.lower() in (".png", ".jpg", ".jpeg")
@@ -367,21 +391,26 @@ def generate_clips(persona_name, video_type="original", ref_image=None):
     subprocess.run(hook_cmd, capture_output=True)
     log.info(f"  Hook clip: {hook_path.name} ({hook_split['duration']}s)")
 
-    # Reaction clip
+    # Reaction clip (optional — None for hook-only formats like olivia_default)
     react_split = splits["reaction"]
-    reaction_path = reaction_dir / f"{ts}.mp4"
-    react_cmd = ["ffmpeg", "-y"]
-    if react_split["start"] > 0:
-        react_cmd += ["-ss", str(react_split["start"])]
-    react_cmd += ["-i", str(raw_path), "-t", str(react_split["duration"]),
-                  "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-an", str(reaction_path)]
-    subprocess.run(react_cmd, capture_output=True)
-    log.info(f"  Reaction clip: {reaction_path.name} ({react_split['duration']}s)")
+    reaction_path = None
+    if react_split is not None:
+        reaction_path = reaction_dir / f"{ts}.mp4"
+        react_cmd = ["ffmpeg", "-y"]
+        if react_split["start"] > 0:
+            react_cmd += ["-ss", str(react_split["start"])]
+        react_cmd += ["-i", str(raw_path), "-t", str(react_split["duration"]),
+                      "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-an", str(reaction_path)]
+        subprocess.run(react_cmd, capture_output=True)
+        log.info(f"  Reaction clip: {reaction_path.name} ({react_split['duration']}s)")
 
     # Clean up raw
     raw_path.unlink(missing_ok=True)
 
-    log.info(f"Clips saved: {hook_path.name}, {reaction_path.name}")
+    if reaction_path:
+        log.info(f"Clips saved: {hook_path.name}, {reaction_path.name}")
+    else:
+        log.info(f"Clip saved: {hook_path.name} (hook only)")
     return hook_path, reaction_path
 
 
@@ -438,7 +467,35 @@ def generate_text(context, persona_name, app_name):
         "Journal Lock": "an iOS app that makes you journal before unlocking your phone. It replaces doomscrolling with daily self-reflection and emotional check-ins.",
     }
 
-    system = f"""You are the {app_name} content engine. You generate short text overlays for UGC-style TikTok/Instagram Reels.
+    # Olivia uses a hook-only format (no reaction clip)
+    if persona_name == "olivia":
+        system = f"""You are the {app_name} content engine. You generate short text overlays for UGC-style TikTok/Instagram Reels.
+
+The app: {app_name} is {APP_DESCRIPTIONS[app_name]}
+
+The video format (hook + screen recording only, NO reaction clip):
+- Part 1 (hook clip): Woman walking outdoors at golden hour, calm confidence. YOUR hook text appears below her.
+- Part 2 (screen recording): App demo plays. No text overlay.
+
+Olivia's voice: Anti-woo. Zero fluff. "Wrote it down, did the work, it happened." Low words, high proof. She doesn't convince — she states. Calm, grounded, matter-of-fact.
+
+Rules:
+- hook_text: First-person statement or quiet flex. Max 50 characters. Understated confidence, not hype.
+- Voice: Millennial woman, direct, no filler, no emojis in overlays
+- Never mention the app name in text overlays
+- Every hook implies proof without explaining it
+- Vary angles: quiet result, daily ritual, undeniable proof, calm flex
+
+Also generate a caption (first-person, minimal, soft CTA, max 5 hashtags).
+
+Respond ONLY with valid JSON, no markdown fences:
+{{
+  "hook_text": "...",
+  "caption": "...",
+  "content_angle": "quiet_result|daily_ritual|proof|calm_flex"
+}}"""
+    else:
+        system = f"""You are the {app_name} content engine. You generate short text overlays for UGC-style TikTok/Instagram Reels.
 
 The app: {app_name} is {APP_DESCRIPTIONS[app_name]}
 
@@ -517,8 +574,16 @@ Generate fresh, non-repetitive content. Avoid hooks from memory files."""
         }
         if not result["hook_text"]:
             raise ValueError(f"Could not extract hook_text from Claude response: {raw[:200]}")
+
+    # Normalize: ensure reaction_text exists for pipeline compat (empty for hook-only personas)
+    if "reaction_text" not in result:
+        result["reaction_text"] = ""
+    if "content_angle" not in result:
+        result["content_angle"] = "discovery"
+
     log.info(f"Hook:     {result['hook_text']}")
-    log.info(f"Reaction: {result['reaction_text']}")
+    if result["reaction_text"]:
+        log.info(f"Reaction: {result['reaction_text']}")
     log.info(f"Angle:    {result.get('content_angle', 'unknown')}")
     return result
 
@@ -541,12 +606,13 @@ def assemble_video(hook_clip, screen_rec, reaction_clip, text, no_upload=False, 
         sys.executable, str(SCRIPTS_DIR / "assemble_video.py"),
         "--hook-clip", str(hook_clip),
         "--screen-recording", str(screen_rec),
-        "--reaction-clip", str(reaction_clip),
         "--hook-text", text["hook_text"],
-        "--reaction-text", text["reaction_text"],
         "--speed", "1",
         "--output", str(output_path),
     ]
+    if reaction_clip is not None:
+        cmd += ["--reaction-clip", str(reaction_clip),
+                "--reaction-text", text["reaction_text"]]
     if no_upload:
         cmd.append("--no-upload")
 
@@ -634,7 +700,8 @@ def send_notification(subject, body):
 def run_persona(persona_name, dry_run=False, no_upload=False, skip_gen=False, video_type=None):
     """Run the full pipeline for a single persona. Multi-app personas generate one reel per app."""
     if video_type is None:
-        video_type = pick_video_type()
+        # Check for persona-specific video_type override before daily rotation
+        video_type = PERSONAS[persona_name].get("video_type") or pick_video_type()
     log.info(f"Video type: {video_type} (day {datetime.now().timetuple().tm_yday})")
     apps = PERSONAS[persona_name]["apps"]
     for app_name, screen_rec_dir in apps:
@@ -680,10 +747,14 @@ def _run_persona_for_app(persona_name, app_name, screen_rec_dir, dry_run=False, 
             log.info(f"  Video type: {video_type}")
             log.info(f"  Ref image:  {ref_image.name}")
             log.info(f"  Hook:       \"{text['hook_text']}\"")
-            log.info(f"  Reaction:   \"{text['reaction_text']}\"")
+            if text.get("reaction_text"):
+                log.info(f"  Reaction:   \"{text['reaction_text']}\"")
             log.info(f"  Screen:     {screen_rec.name}")
             log.info(f"  Hook split: {splits['hook']['duration']}s from {splits['hook']['start']}s")
-            log.info(f"  React split: {splits['reaction']['duration']}s from {splits['reaction']['start']}s")
+            if splits["reaction"] is not None:
+                log.info(f"  React split: {splits['reaction']['duration']}s from {splits['reaction']['start']}s")
+            else:
+                log.info(f"  React split: (none — hook-only format)")
             log.info(f"  Caption:    {text.get('caption', 'N/A')[:100]}...")
             log.info(f"  Est cost:   ~$0.61 (skipped)")
             save_log(persona_name, text, None, cost, video_type)
@@ -691,15 +762,24 @@ def _run_persona_for_app(persona_name, app_name, screen_rec_dir, dry_run=False, 
             return
 
         # 3. Generate or pick clips
+        splits = get_clip_split_points(video_type)
+        needs_reaction = splits["reaction"] is not None
+
         if skip_gen:
             persona_dir = CLIPS_DIR / persona_name
             hooks = find_clips(persona_dir / "hook")
-            reactions = find_clips(persona_dir / "reaction")
-            if not hooks or not reactions:
-                raise FileNotFoundError(f"No existing clips for {persona_name}")
+            if not hooks:
+                raise FileNotFoundError(f"No existing hook clips for {persona_name}")
             hook_clip = random.choice(hooks)
-            reaction_clip = random.choice(reactions)
-            log.info(f"Using existing: {hook_clip.name}, {reaction_clip.name}")
+            reaction_clip = None
+            if needs_reaction:
+                reactions = find_clips(persona_dir / "reaction")
+                if not reactions:
+                    raise FileNotFoundError(f"No existing reaction clips for {persona_name}")
+                reaction_clip = random.choice(reactions)
+                log.info(f"Using existing: {hook_clip.name}, {reaction_clip.name}")
+            else:
+                log.info(f"Using existing: {hook_clip.name} (hook only)")
         else:
             hook_clip, reaction_clip = generate_clips(persona_name, video_type, ref_image=ref_image)
             cost += 0.60  # 1 Veo 3.1 Fast clip (4s)
@@ -745,7 +825,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Video autopilot for ManifestLock + JournalLock")
     parser.add_argument("--persona", required=True,
                         help="sanya, sophie, aliyah, both, all, or comma-separated list (e.g. sanya,aliyah)")
-    parser.add_argument("--video-type", choices=["original", "ugc_lighting", "outdoor"],
+    parser.add_argument("--video-type", choices=["original", "ugc_lighting", "outdoor", "olivia_default"],
                         help="Override daily rotation with a specific video type")
     parser.add_argument("--dry-run", action="store_true", help="Plan only, skip generation")
     parser.add_argument("--no-upload", action="store_true", help="Build but skip Drive upload")
@@ -755,11 +835,11 @@ if __name__ == "__main__":
     # Resolve video type: CLI override or daily rotation
     video_type = args.video_type  # None means pick_video_type() will be called in run_persona
 
-    valid_personas = {"sanya", "sophie", "aliyah"}
+    valid_personas = {"sanya", "sophie", "aliyah", "olivia"}
     if args.persona == "both":
         personas = ["sanya", "sophie"]
     elif args.persona == "all":
-        personas = ["sanya", "sophie", "aliyah"]
+        personas = ["sanya", "sophie", "aliyah", "olivia"]
     elif "," in args.persona:
         personas = [p.strip() for p in args.persona.split(",") if p.strip()]
         bad = [p for p in personas if p not in valid_personas]
