@@ -254,6 +254,7 @@ export interface PipelineRunRequest {
   persona: string;
   video_type?: string;
   app?: string;
+  engine?: string;
   dry_run?: boolean;
   no_upload?: boolean;
   skip_gen?: boolean;

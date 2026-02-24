@@ -280,28 +280,49 @@ STYLE — Naturalistic aesthetic with sharp 4K clarity, vibrant colors; no text 
 # ─── AI Clip Generation (Replicate) ─────────────────
 
 
-def generate_video(image_url, video_prompt):
-    """Generate video from image via Google Veo 3.1 Fast."""
+def generate_video(image_url, video_prompt, engine="veo"):
+    """Generate video from image via Replicate (Veo or Seedance)."""
     import replicate
     import httpx
 
-    log.info("Generating video (Google Veo 3.1 Fast, ~1-3min)...")
-    client = replicate.Client(
-        api_token=REPLICATE_API_TOKEN,
-        timeout=httpx.Timeout(600, connect=30),
-    )
-    output = client.run(
-        "google/veo-3.1-fast",
-        input={
-            "prompt": video_prompt,
-            "image": image_url,
-            "duration": 4,
-            "aspect_ratio": "9:16",
-            "generate_audio": False,
-        },
-    )
+    if engine == "seedance":
+        model_id = "bytedance/seedance-1.5-pro"
+        log.info("Generating video (Seedance 1.5 Pro, ~2-5min)...")
+        client = replicate.Client(
+            api_token=REPLICATE_API_TOKEN,
+            timeout=httpx.Timeout(900, connect=30),
+        )
+        output = client.run(
+            model_id,
+            input={
+                "prompt": video_prompt,
+                "input_urls": [image_url],
+                "aspect_ratio": "9:16",
+                "resolution": "720p",
+                "duration": "4",
+                "generate_audio": False,
+                "fixed_lens": False,
+            },
+        )
+    else:
+        model_id = "google/veo-3.1-fast"
+        log.info("Generating video (Google Veo 3.1 Fast, ~1-3min)...")
+        client = replicate.Client(
+            api_token=REPLICATE_API_TOKEN,
+            timeout=httpx.Timeout(600, connect=30),
+        )
+        output = client.run(
+            model_id,
+            input={
+                "prompt": video_prompt,
+                "image": image_url,
+                "duration": 4,
+                "aspect_ratio": "9:16",
+                "generate_audio": False,
+            },
+        )
     url = output.url
-    log.info(f"  Video ready")
+    log.info(f"  Video ready ({model_id})")
     return url
 
 
@@ -343,10 +364,10 @@ def get_clip_split_points(video_type):
     return CLIP_SPLIT_POINTS[video_type]
 
 
-def generate_clips(persona_name, video_type="original", ref_image=None):
+def generate_clips(persona_name, video_type="original", ref_image=None, engine="veo"):
     """Generate fresh hook + reaction clips via Replicate.
 
-    Flow: upload reference image → Veo 3.1 Fast generates a single 4s clip →
+    Flow: upload reference image → generate a single 4s clip (Veo or Seedance) →
     split into hook + reaction using type-specific split points.
 
     Returns (hook_clip_path, reaction_clip_path).
@@ -372,9 +393,9 @@ def generate_clips(persona_name, video_type="original", ref_image=None):
     log.info(f"  Uploaded to Replicate storage")
 
     # 2. Generate ONE video clip → split using type-specific split points
-    log.info(f"--- Generating clip (single Veo call, type={video_type}) ---")
+    log.info(f"--- Generating clip (engine={engine}, type={video_type}) ---")
     video_prompt = build_video_prompt(video_type)
-    video_url = generate_video(image_url, video_prompt)
+    video_url = generate_video(image_url, video_prompt, engine=engine)
     raw_path = hook_dir / f"{ts}_raw.mp4"
     download_file(video_url, raw_path)
 
@@ -697,7 +718,7 @@ def send_notification(subject, body):
 
 # ─── Main ────────────────────────────────────────────
 
-def run_persona(persona_name, dry_run=False, no_upload=False, skip_gen=False, video_type=None, app_filter=None):
+def run_persona(persona_name, dry_run=False, no_upload=False, skip_gen=False, video_type=None, app_filter=None, engine="veo"):
     """Run the full pipeline for a single persona. Multi-app personas generate one reel per app."""
     if video_type is None:
         # Check for persona-specific video_type override before daily rotation
@@ -711,10 +732,10 @@ def run_persona(persona_name, dry_run=False, no_upload=False, skip_gen=False, vi
             log.error(f"App '{app_filter}' not available for {persona_name}. Options: {available}")
             return
     for app_name, screen_rec_dir in apps:
-        _run_persona_for_app(persona_name, app_name, screen_rec_dir, dry_run, no_upload, skip_gen, video_type)
+        _run_persona_for_app(persona_name, app_name, screen_rec_dir, dry_run, no_upload, skip_gen, video_type, engine=engine)
 
 
-def _run_persona_for_app(persona_name, app_name, screen_rec_dir, dry_run=False, no_upload=False, skip_gen=False, video_type="original"):
+def _run_persona_for_app(persona_name, app_name, screen_rec_dir, dry_run=False, no_upload=False, skip_gen=False, video_type="original", engine="veo"):
     """Run the full pipeline for a single persona + app combination."""
     start_time = datetime.now()
     log.info("=" * 50)
@@ -787,8 +808,8 @@ def _run_persona_for_app(persona_name, app_name, screen_rec_dir, dry_run=False, 
             else:
                 log.info(f"Using existing: {hook_clip.name} (hook only)")
         else:
-            hook_clip, reaction_clip = generate_clips(persona_name, video_type, ref_image=ref_image)
-            cost += 0.60  # 1 Veo 3.1 Fast clip (4s)
+            hook_clip, reaction_clip = generate_clips(persona_name, video_type, ref_image=ref_image, engine=engine)
+            cost += 0.60  # 1 video clip (4s)
             record_spend(cost)
 
         # 4. Assemble
@@ -838,6 +859,8 @@ if __name__ == "__main__":
     parser.add_argument("--skip-gen", action="store_true", help="Use existing clips, skip Replicate")
     parser.add_argument("--app", choices=["manifest-lock", "journal-lock"],
                         help="Run only this app (useful for multi-app personas like aliyah)")
+    parser.add_argument("--engine", choices=["veo", "seedance"], default="veo",
+                        help="Video generation engine (default: veo)")
     args = parser.parse_args()
 
     # Resolve video type: CLI override or daily rotation
@@ -858,4 +881,4 @@ if __name__ == "__main__":
             parser.error(f"Unknown persona: {args.persona}")
         personas = [args.persona]
     for p in personas:
-        run_persona(p, dry_run=args.dry_run, no_upload=args.no_upload, skip_gen=args.skip_gen, video_type=video_type, app_filter=args.app)
+        run_persona(p, dry_run=args.dry_run, no_upload=args.no_upload, skip_gen=args.skip_gen, video_type=video_type, app_filter=args.app, engine=args.engine)

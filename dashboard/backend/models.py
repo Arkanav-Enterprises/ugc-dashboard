@@ -73,6 +73,7 @@ class PipelineRunRequest(BaseModel):
     persona: str = "sanya"
     video_type: Optional[str] = None
     app: Optional[str] = None
+    engine: str = "veo"
     dry_run: bool = False
     no_upload: bool = False
     skip_gen: bool = False

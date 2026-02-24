@@ -23,6 +23,8 @@ def start_pipeline_run(req: PipelineRunRequest) -> PipelineRunStatus:
         cmd += ["--video-type", req.video_type]
     if req.app:
         cmd += ["--app", req.app]
+    if req.engine and req.engine != "veo":
+        cmd += ["--engine", req.engine]
     if req.dry_run:
         cmd.append("--dry-run")
     if req.no_upload:

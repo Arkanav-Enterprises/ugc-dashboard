@@ -21,6 +21,7 @@ export default function GenerateVideosPage() {
   const [selected, setSelected] = useState<string>("");
   const [checkedApps, setCheckedApps] = useState<Set<string>>(new Set());
   const [videoType, setVideoType] = useState<string>("auto");
+  const [engine, setEngine] = useState<string>("veo");
   const [dryRun, setDryRun] = useState(false);
   const [noUpload, setNoUpload] = useState(false);
   const [skipGen, setSkipGen] = useState(false);
@@ -103,6 +104,7 @@ export default function GenerateVideosPage() {
         persona: selected,
         video_type: vt,
         app: currentConfig.apps.length > 1 ? app.slug : undefined,
+        engine,
         dry_run: dryRun,
         no_upload: noUpload,
         skip_gen: skipGen,
@@ -205,6 +207,32 @@ export default function GenerateVideosPage() {
                     ))}
                   </select>
                 )}
+              </div>
+
+              {/* Engine selector */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  Video Engine
+                </label>
+                <div className="flex gap-2">
+                  {[
+                    { id: "veo", label: "Veo 3.1 Fast", desc: "Google — ~$0.60/clip" },
+                    { id: "seedance", label: "Seedance 1.5 Pro", desc: "ByteDance — ~$0.05/clip" },
+                  ].map((eng) => (
+                    <button
+                      key={eng.id}
+                      onClick={() => setEngine(eng.id)}
+                      className={`flex-1 px-3 py-2 text-xs rounded-md border transition-colors text-left ${
+                        engine === eng.id
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "text-muted-foreground hover:bg-accent"
+                      }`}
+                    >
+                      <div className="font-medium">{eng.label}</div>
+                      <div className="opacity-70">{eng.desc}</div>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Option toggles */}
