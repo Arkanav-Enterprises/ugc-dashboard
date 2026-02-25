@@ -18,9 +18,10 @@ const PERSONA_COLORS: Record<string, string> = {
   sophie: "#3b82f6",
   aliyah: "#8b5cf6",
   olivia: "#f59e0b",
+  riley: "#10b981",
 };
 
-const PERSONAS = ["all", "sanya", "sophie", "aliyah", "olivia"];
+const PERSONAS = ["all", "sanya", "sophie", "aliyah", "olivia", "riley"];
 const VIDEO_TYPES = ["all", "original", "ugc_lighting", "outdoor"];
 
 export default function ContentGalleryPage() {

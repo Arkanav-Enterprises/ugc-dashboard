@@ -41,6 +41,7 @@ def _read_config() -> dict:
                 "sophie": {"enabled": True, "video_type": "auto"},
                 "aliyah": {"enabled": True, "video_type": "auto"},
                 "olivia": {"enabled": True, "video_type": "auto"},
+                "riley": {"enabled": True, "video_type": "auto"},
             },
         },
         "text_pipeline": {

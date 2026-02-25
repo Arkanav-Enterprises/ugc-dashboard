@@ -46,12 +46,13 @@ try:
 except _json.JSONDecodeError:
     OUTREACH_ACCOUNTS = []
 
-PERSONAS = ["sanya", "sophie", "aliyah", "olivia"]
+PERSONAS = ["sanya", "sophie", "aliyah", "olivia", "riley"]
 PERSONA_COLORS = {
     "sanya": "#ef4444",   # warm red
     "sophie": "#3b82f6",  # blue
     "aliyah": "#8b5cf6",  # purple
     "olivia": "#f59e0b",  # amber/gold
+    "riley": "#10b981",   # emerald
 }
 PERSONA_APPS: dict[str, dict] = {
     "sanya": {
@@ -72,5 +73,12 @@ PERSONA_APPS: dict[str, dict] = {
     "olivia": {
         "apps": [{"name": "Manifest Lock", "slug": "manifest-lock"}],
         "video_types": ["olivia_default"],
+    },
+    "riley": {
+        "apps": [
+            {"name": "Manifest Lock", "slug": "manifest-lock"},
+            {"name": "Journal Lock", "slug": "journal-lock"},
+        ],
+        "video_types": ["riley_default"],
     },
 }

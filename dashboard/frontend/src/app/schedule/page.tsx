@@ -16,6 +16,8 @@ const PERSONA_COLORS: Record<string, string> = {
   sanya: "#ef4444",
   sophie: "#3b82f6",
   aliyah: "#8b5cf6",
+  olivia: "#f59e0b",
+  riley: "#10b981",
 };
 
 const VIDEO_TYPE_OPTIONS = ["auto", "original", "ugc_lighting", "outdoor"];

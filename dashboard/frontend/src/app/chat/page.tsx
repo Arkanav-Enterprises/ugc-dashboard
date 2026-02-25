@@ -41,8 +41,8 @@ const ACTION_META: Record<Action, {
   },
   "run-all": {
     label: "Run All Personas",
-    cost: "~$1.83",
-    description: "This will generate video clips for all 3 personas (Sanya, Sophie, Aliyah) — 3 Replicate calls.",
+    cost: "~$4.27",
+    description: "This will generate video clips for all 5 personas (Sanya, Sophie, Aliyah, Olivia, Riley) — 7 Replicate calls.",
     needsConfirm: true,
   },
   "dry-run": {

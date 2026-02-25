@@ -128,7 +128,7 @@ export default function GenerateVideosPage() {
     if (newRuns.some((r) => r.status === "running")) startPolling();
   };
 
-  const isOlivia = selected === "olivia";
+  const hasFixedType = currentConfig?.video_types.length === 1;
 
   return (
     <div className="space-y-6">
@@ -191,8 +191,8 @@ export default function GenerateVideosPage() {
                 <label className="text-xs font-medium text-muted-foreground block mb-1">
                   Video Type
                 </label>
-                {isOlivia ? (
-                  <Badge variant="secondary">olivia_default</Badge>
+                {hasFixedType ? (
+                  <Badge variant="secondary">{currentConfig.video_types[0]}</Badge>
                 ) : (
                   <select
                     value={videoType}
