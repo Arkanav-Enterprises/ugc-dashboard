@@ -39,6 +39,14 @@ OUTREACH_OUTPUT_DIR = PROJECT_ROOT / "output" / "outreach"
 OUTREACH_DEFAULT_HOST = "smtp.zoho.com"
 OUTREACH_DEFAULT_PORT = 587
 
+# ─── PostHog Analytics ──────────────────────────────
+POSTHOG_HOST = os.environ.get("POSTHOG_HOST", "https://us.i.posthog.com")
+POSTHOG_API_KEY = os.environ.get("POSTHOG_API_KEY", "")
+POSTHOG_PROJECTS = {
+    "manifest-lock": 306371,
+    "journal-lock": 313945,
+}
+
 import json as _json
 _raw_accounts = os.environ.get("OUTREACH_ACCOUNTS", "[]")
 try:

@@ -82,6 +82,7 @@ export default function ChatPage() {
     "failure-log.md",
     "x-trends.md",
   ]);
+  const [includeAnalytics, setIncludeAnalytics] = useState(false);
   const [confirmAction, setConfirmAction] = useState<Action | null>(null);
   const [runningAction, setRunningAction] = useState<Action | null>(null);
   const [lastResult, setLastResult] = useState<{ action: Action; success: boolean } | null>(null);
@@ -149,7 +150,8 @@ export default function ChatPage() {
           return next;
         });
         setStreaming(false);
-      }
+      },
+      includeAnalytics
     );
   };
 
@@ -387,6 +389,23 @@ export default function ChatPage() {
                 <span className="truncate">{f}</span>
               </label>
             ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Data Sources</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={includeAnalytics}
+                onChange={() => setIncludeAnalytics(!includeAnalytics)}
+                className="rounded"
+              />
+              <span>Analytics Data (PostHog)</span>
+            </label>
           </CardContent>
         </Card>
       </div>

@@ -268,6 +268,39 @@ class OutreachEmail(BaseModel):
 class OutreachParseRequest(BaseModel):
     markdown: str
 
+
+# ─── Analytics models ────────────────────────────────
+
+class FunnelStep(BaseModel):
+    name: str
+    count: int
+    conversion_rate: float
+    drop_off_rate: float
+
+
+class FunnelResult(BaseModel):
+    steps: list[FunnelStep]
+    overall_conversion: float
+
+
+class TrendSeries(BaseModel):
+    event: str
+    labels: list[str]
+    data: list[float]
+    count: int
+
+
+class AnalyticsSummary(BaseModel):
+    app: str
+    funnel: FunnelResult
+    trends: list[TrendSeries]
+
+
+class AnalyticsAskRequest(BaseModel):
+    message: str
+    history: list[dict] = []
+    app: Optional[str] = None
+
 class OutreachSendRequest(BaseModel):
     emails: list[OutreachEmail]
     account_label: str

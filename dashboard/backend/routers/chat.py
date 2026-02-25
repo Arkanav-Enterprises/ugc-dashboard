@@ -17,6 +17,7 @@ class ChatRequest(BaseModel):
     history: list[dict] = []
     skill_files: list[str] | None = None
     memory_files: list[str] | None = None
+    include_analytics: bool = False
 
 
 @router.get("/context-files")
@@ -36,7 +37,7 @@ async def chat_stream(req: ChatRequest):
 
     async def event_generator():
         try:
-            async for chunk in stream_chat(messages, req.skill_files, req.memory_files):
+            async for chunk in stream_chat(messages, req.skill_files, req.memory_files, req.include_analytics):
                 yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
             yield "data: [DONE]\n\n"
         except Exception as e:
@@ -65,12 +66,13 @@ async def chat_websocket(ws: WebSocket):
             history = payload.get("history", [])
             skill_files = payload.get("skill_files")
             memory_files = payload.get("memory_files")
+            include_analytics = payload.get("include_analytics", False)
 
             messages = list(history)
             messages.append({"role": "user", "content": user_message})
 
             try:
-                async for chunk in stream_chat(messages, skill_files, memory_files):
+                async for chunk in stream_chat(messages, skill_files, memory_files, include_analytics):
                     await ws.send_text(json.dumps({"type": "chunk", "content": chunk}))
                 await ws.send_text(json.dumps({"type": "done"}))
             except Exception as e:

@@ -111,7 +111,8 @@ export async function streamChat(
   memoryFiles: string[],
   onChunk: (text: string) => void,
   onDone: () => void,
-  onError: (err: string) => void
+  onError: (err: string) => void,
+  includeAnalytics: boolean = false
 ) {
   const res = await fetch(`${API_BASE}/api/chat/stream`, {
     method: "POST",
@@ -121,6 +122,7 @@ export async function streamChat(
       history,
       skill_files: skillFiles,
       memory_files: memoryFiles,
+      include_analytics: includeAnalytics,
     }),
   });
 
@@ -692,6 +694,110 @@ export async function getOutreachHistory() {
 
 export async function getOutreachBatch(id: string) {
   return fetchAPI<OutreachBatchResult>(`/api/outreach/history/${id}`);
+}
+
+// ─── Analytics (PostHog) ─────────────────────────────
+
+export interface FunnelStep {
+  name: string;
+  count: number;
+  conversion_rate: number;
+  drop_off_rate: number;
+}
+
+export interface FunnelResult {
+  steps: FunnelStep[];
+  overall_conversion: number;
+  error?: string;
+}
+
+export interface TrendSeries {
+  event: string;
+  labels: string[];
+  data: number[];
+  count: number;
+}
+
+export interface AnalyticsSummary {
+  app: string;
+  funnel: FunnelResult;
+  trends: TrendSeries[];
+}
+
+export interface CombinedAnalytics {
+  manifest_lock: AnalyticsSummary;
+  journal_lock: AnalyticsSummary;
+}
+
+export async function getAnalyticsFunnel(app: string, dateFrom: string = "-30d", steps?: string[]) {
+  const q = new URLSearchParams({ app, date_from: dateFrom });
+  if (steps) q.set("steps", steps.join(","));
+  return fetchAPI<FunnelResult>(`/api/analytics/funnel?${q}`);
+}
+
+export async function getAnalyticsTrends(app: string, dateFrom: string = "-30d", interval: string = "day", events?: string[]) {
+  const q = new URLSearchParams({ app, date_from: dateFrom, interval });
+  if (events) q.set("events", events.join(","));
+  return fetchAPI<TrendSeries[]>(`/api/analytics/trends?${q}`);
+}
+
+export async function getAnalyticsSummary() {
+  return fetchAPI<CombinedAnalytics>("/api/analytics/summary");
+}
+
+export async function streamAnalyticsAsk(
+  message: string,
+  history: { role: string; content: string }[],
+  onChunk: (text: string) => void,
+  onDone: () => void,
+  onError: (err: string) => void
+) {
+  const res = await fetch(`${API_BASE}/api/analytics/ask`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, history }),
+  });
+
+  if (!res.ok) {
+    onError(`API error: ${res.status}`);
+    return;
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) {
+    onError("No response body");
+    return;
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        const data = line.slice(6);
+        if (data === "[DONE]") {
+          onDone();
+          return;
+        }
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.type === "chunk") onChunk(parsed.content);
+          else if (parsed.type === "error") onError(parsed.content);
+        } catch {
+          // skip malformed lines
+        }
+      }
+    }
+  }
+  onDone();
 }
 
 export async function streamRedditAnalysis(

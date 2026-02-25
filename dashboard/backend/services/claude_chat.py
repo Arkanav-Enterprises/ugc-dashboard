@@ -6,14 +6,20 @@ from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL
 from services.skill_loader import load_context
 
 
-def build_system_prompt(skill_files: list[str] | None = None, memory_files: list[str] | None = None) -> str:
+async def build_system_prompt(skill_files: list[str] | None = None, memory_files: list[str] | None = None, include_analytics: bool = False) -> str:
     """Build system prompt with loaded skill context."""
     context = load_context(skill_files, memory_files)
+
+    analytics_block = ""
+    if include_analytics:
+        from services.posthog_client import format_metrics_for_ai
+        analytics_block = "\n\n" + await format_metrics_for_ai()
+
     return f"""You are the OpenClaw content engine assistant. You help create, analyze, and optimize UGC-style video content for the ManifestLock and JournalLock apps.
 
 You have access to the following knowledge:
 
-{context}
+{context}{analytics_block}
 
 You can help with:
 - Generating hook text and reaction text for reels
@@ -25,14 +31,14 @@ You can help with:
 Be concise, creative, and speak in a Gen Z-friendly voice when generating content. For strategy questions, be analytical and data-driven."""
 
 
-async def stream_chat(messages: list[dict], skill_files: list[str] | None = None, memory_files: list[str] | None = None):
+async def stream_chat(messages: list[dict], skill_files: list[str] | None = None, memory_files: list[str] | None = None, include_analytics: bool = False):
     """Stream a chat response from Claude. Yields text chunks."""
     if not ANTHROPIC_API_KEY:
         yield "Error: ANTHROPIC_API_KEY not configured"
         return
 
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    system = build_system_prompt(skill_files, memory_files)
+    system = await build_system_prompt(skill_files, memory_files, include_analytics)
 
     with client.messages.stream(
         model=ANTHROPIC_MODEL,
