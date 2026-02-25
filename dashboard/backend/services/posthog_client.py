@@ -1,4 +1,4 @@
-"""PostHog analytics client — funnel + trend queries."""
+"""PostHog analytics client — funnel + trend queries via /query/ API."""
 
 import httpx
 
@@ -41,7 +41,10 @@ def _project_config(app: str) -> dict:
 
 
 def _headers(app: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {_project_config(app)['api_key']}"}
+    return {
+        "Authorization": f"Bearer {_project_config(app)['api_key']}",
+        "Content-Type": "application/json",
+    }
 
 
 def _has_key(app: str) -> bool:
@@ -49,7 +52,7 @@ def _has_key(app: str) -> bool:
 
 
 async def get_funnel(app: str, steps: list[str] | None = None, date_from: str = "-30d") -> dict:
-    """Query PostHog funnel insight for an app."""
+    """Query PostHog funnel via /query/ API."""
     if not _has_key(app):
         return {"error": f"POSTHOG_API_KEY_{app.split('-')[0].upper()} not configured", "steps": [], "overall_conversion": 0}
 
@@ -58,30 +61,41 @@ async def get_funnel(app: str, steps: list[str] | None = None, date_from: str = 
     if not funnel_steps:
         return {"steps": [], "overall_conversion": 0}
 
-    events = [{"id": name, "type": "events", "order": i} for i, name in enumerate(funnel_steps)]
+    series = [{"kind": "EventsNode", "event": name, "name": name} for name in funnel_steps]
 
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
-            f"{POSTHOG_HOST}/api/projects/{pid}/insights/funnel/",
+            f"{POSTHOG_HOST}/api/projects/{pid}/query/",
             headers=_headers(app),
             json={
-                "events": events,
-                "date_from": date_from,
-                "funnel_viz_type": "steps",
+                "query": {
+                    "kind": "FunnelsQuery",
+                    "series": series,
+                    "dateRange": {"date_from": date_from},
+                    "funnelsFilter": {"funnelVizType": "steps"},
+                }
             },
         )
         resp.raise_for_status()
         data = resp.json()
 
-    # Parse PostHog funnel response
-    results = data.get("result", [])
+    # Parse PostHog query response — results is a list of lists (one per step)
+    results = data.get("results", [])
     if not results:
         return {"steps": [{"name": s, "count": 0, "conversion_rate": 0, "drop_off_rate": 0} for s in funnel_steps], "overall_conversion": 0}
 
+    # Each element in results is a list of breakdown entries; take the first (overall)
     parsed_steps = []
     first_count = 0
     last_count = 0
-    for i, step_data in enumerate(results):
+
+    for i, step_entries in enumerate(results):
+        # step_entries can be a list of dicts or a single dict
+        if isinstance(step_entries, list):
+            step_data = step_entries[0] if step_entries else {}
+        else:
+            step_data = step_entries
+
         count = step_data.get("count", 0)
         if i == 0:
             first_count = count
@@ -89,11 +103,21 @@ async def get_funnel(app: str, steps: list[str] | None = None, date_from: str = 
         else:
             conv_rate = (count / first_count * 100) if first_count > 0 else 0
 
-        prev_count = results[i - 1].get("count", 0) if i > 0 else count
+        prev_count = 0
+        if i > 0:
+            prev_entries = results[i - 1]
+            if isinstance(prev_entries, list):
+                prev_count = prev_entries[0].get("count", 0) if prev_entries else 0
+            else:
+                prev_count = prev_entries.get("count", 0)
+        else:
+            prev_count = count
+
         drop_off = ((prev_count - count) / prev_count * 100) if prev_count > 0 else 0
 
+        step_name = funnel_steps[i] if i < len(funnel_steps) else step_data.get("name", f"Step {i+1}")
         parsed_steps.append({
-            "name": funnel_steps[i] if i < len(funnel_steps) else step_data.get("name", f"Step {i+1}"),
+            "name": step_name,
             "count": count,
             "conversion_rate": round(conv_rate, 1),
             "drop_off_rate": round(drop_off, 1),
@@ -109,38 +133,42 @@ async def get_funnel(app: str, steps: list[str] | None = None, date_from: str = 
 
 
 async def get_trend(app: str, events: list[str] | None = None, date_from: str = "-30d", interval: str = "day") -> list[dict]:
-    """Query PostHog trend insight for an app."""
+    """Query PostHog trends via /query/ API."""
     if not _has_key(app):
         return []
 
     pid = _project_config(app)["id"]
     event_list = events or FEATURE_EVENTS.get(app, []) + RETENTION_EVENTS
 
-    trend_events = [{"id": name, "type": "events", "math": "dau"} for name in event_list]
+    series = [{"kind": "EventsNode", "event": name, "name": name, "math": "dau"} for name in event_list]
 
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
-            f"{POSTHOG_HOST}/api/projects/{pid}/insights/trend/",
+            f"{POSTHOG_HOST}/api/projects/{pid}/query/",
             headers=_headers(app),
             json={
-                "events": trend_events,
-                "date_from": date_from,
-                "interval": interval,
+                "query": {
+                    "kind": "TrendsQuery",
+                    "series": series,
+                    "dateRange": {"date_from": date_from},
+                    "interval": interval,
+                }
             },
         )
         resp.raise_for_status()
         data = resp.json()
 
-    series = []
-    for result in data.get("result", []):
-        series.append({
+    result_list = data.get("results", [])
+    output = []
+    for result in result_list:
+        output.append({
             "event": result.get("label", result.get("action", {}).get("id", "unknown")),
             "labels": result.get("labels", []),
             "data": result.get("data", []),
             "count": result.get("count", 0),
         })
 
-    return series
+    return output
 
 
 async def get_analytics_summary(app: str) -> dict:
@@ -185,7 +213,6 @@ async def format_metrics_for_ai() -> str:
             for step in funnel["steps"]:
                 lines.append(f"  - {step['name']}: {step['count']} users ({step['conversion_rate']}% of start, {step['drop_off_rate']}% drop-off)")
 
-            # Find biggest drop-off
             max_drop = max(funnel["steps"], key=lambda s: s["drop_off_rate"])
             if max_drop["drop_off_rate"] > 0:
                 lines.append(f"Biggest drop-off: {max_drop['name']} ({max_drop['drop_off_rate']}%)")
