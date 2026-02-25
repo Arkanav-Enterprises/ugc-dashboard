@@ -1,7 +1,7 @@
 #!/bin/bash
 # Video autopilot cron wrapper
 # Runs daily at 12 PM IST (6:30 AM UTC)
-# Generates 1 reel per persona: sanya (ManifestLock) + sophie (JournalLock) + aliyah (random app)
+# Generates 1 reel per persona: sanya (ManifestLock) + sophie (JournalLock) + aliyah (random app) + olivia (ManifestLock) + riley (random app)
 #
 # Crontab entry (use `bash` prefix to avoid permission issues):
 #   30 6 * * * bash /root/openclaw/scripts/autopilot_video_cron.sh >> /root/openclaw/logs/cron.log 2>&1

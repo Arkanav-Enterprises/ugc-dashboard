@@ -13,7 +13,9 @@ End-to-end automated reel generation:
 Usage:
   python3 autopilot_video.py --persona sanya          # ManifestLock reel
   python3 autopilot_video.py --persona sophie          # JournalLock reel
-  python3 autopilot_video.py --persona both            # One reel for each
+  python3 autopilot_video.py --persona riley          # Both apps (like aliyah)
+  python3 autopilot_video.py --persona both            # One reel for each (sanya+sophie)
+  python3 autopilot_video.py --persona all             # All personas
   python3 autopilot_video.py --persona sanya --dry-run # Plan only
   python3 autopilot_video.py --persona sanya --no-upload
   python3 autopilot_video.py --persona sanya --skip-gen
@@ -129,6 +131,10 @@ PERSONAS = {
         "apps": [("Manifest Lock", "manifest-lock")],
         "video_type": "olivia_default",
     },
+    "riley": {
+        "apps": [("Manifest Lock", "manifest-lock"), ("Journal Lock", "journal-lock")],
+        "video_type": "riley_default",
+    },
 }
 
 
@@ -194,6 +200,56 @@ ACTION AND CAMERA MOTION:
 No talking. No exaggerated expressions. Calm confidence, quiet purpose.
 
 STYLE — Cinematic 4K vertical video. Golden hour color palette, warm amber tones, natural lighting. No text overlays, subtitles, or captions.""",
+    "riley_default": """Recreate the uploaded reference video exactly in timing, framing, and motion.
+
+Identity:
+Use the freckled brunette girl (uploaded identity reference image) as the exact facial identity.
+Maintain freckles, skin texture, eye shape, hair color, and facial proportions.
+
+Pose & Environment:
+Match the seated study-room setup from the reference video:
+- Sitting cross-legged on a cushioned chair
+- Laptop on small desk in front
+- Same desk height and orientation
+- Same camera angle and framing (medium side angle)
+- Same indoor study room environment
+
+Lighting:
+Soft neutral indoor lighting.
+No golden-hour tint.
+No cinematic grading.
+Match the natural indoor tone of the reference.
+
+Motion Timeline (4 seconds total):
+
+0–1s:
+She types lightly on the laptop.
+Neutral focused expression.
+
+1–2.5s:
+Subtle pause.
+Small eye movement toward screen.
+Micro facial shift.
+
+2.5–4s:
+Slight posture adjustment.
+Very small head tilt.
+Natural breathing visible.
+
+Important Constraints:
+- No talking.
+- No lip movement suggesting speech.
+- No exaggerated gestures.
+- No stylization.
+- No identity drift.
+- No beauty smoothing.
+- Maintain realistic skin texture.
+
+Camera:
+Static camera.
+No zoom.
+No cinematic movement.
+Vertical 9:16 framing.""",
 }
 
 CLIP_SPLIT_POINTS = {
@@ -213,6 +269,10 @@ CLIP_SPLIT_POINTS = {
         "hook": {"start": 0, "duration": 4},
         "reaction": None,
     },
+    "riley_default": {
+        "hook": {"start": 0, "duration": 2.5},
+        "reaction": {"start": 2, "duration": 2},
+    },
 }
 
 
@@ -229,7 +289,7 @@ def pick_reference_image(persona_name, video_type="original"):
     - ugc_lighting: Single file {persona}-ugc.{png,jpeg,jpg}
     - outdoor: Single file {persona}-outdoor.{png,jpeg,jpg}
     """
-    if video_type in ("original", "olivia_default"):
+    if video_type in ("original", "olivia_default", "riley_default"):
         variants = sorted(
             f for f in REF_IMAGES_DIR.iterdir()
             if f.is_file() and f.name.startswith(f"{persona_name}-v") and f.suffix.lower() in (".png", ".jpg", ".jpeg")
@@ -852,7 +912,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Video autopilot for ManifestLock + JournalLock")
     parser.add_argument("--persona", required=True,
                         help="sanya, sophie, aliyah, both, all, or comma-separated list (e.g. sanya,aliyah)")
-    parser.add_argument("--video-type", choices=["original", "ugc_lighting", "outdoor", "olivia_default"],
+    parser.add_argument("--video-type", choices=["original", "ugc_lighting", "outdoor", "olivia_default", "riley_default"],
                         help="Override daily rotation with a specific video type")
     parser.add_argument("--dry-run", action="store_true", help="Plan only, skip generation")
     parser.add_argument("--no-upload", action="store_true", help="Build but skip Drive upload")
@@ -866,11 +926,11 @@ if __name__ == "__main__":
     # Resolve video type: CLI override or daily rotation
     video_type = args.video_type  # None means pick_video_type() will be called in run_persona
 
-    valid_personas = {"sanya", "sophie", "aliyah", "olivia"}
+    valid_personas = {"sanya", "sophie", "aliyah", "olivia", "riley"}
     if args.persona == "both":
         personas = ["sanya", "sophie"]
     elif args.persona == "all":
-        personas = ["sanya", "sophie", "aliyah", "olivia"]
+        personas = ["sanya", "sophie", "aliyah", "olivia", "riley"]
     elif "," in args.persona:
         personas = [p.strip() for p in args.persona.split(",") if p.strip()]
         bad = [p for p in personas if p not in valid_personas]
