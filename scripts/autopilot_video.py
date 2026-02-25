@@ -200,56 +200,23 @@ ACTION AND CAMERA MOTION:
 No talking. No exaggerated expressions. Calm confidence, quiet purpose.
 
 STYLE — Cinematic 4K vertical video. Golden hour color palette, warm amber tones, natural lighting. No text overlays, subtitles, or captions.""",
-    "riley_default": """Recreate the uploaded reference video exactly in timing, framing, and motion.
+    "riley_default": """No subtitles. No captions. No music.
 
-Identity:
-Use the freckled brunette girl (uploaded identity reference image) as the exact facial identity.
-Maintain freckles, skin texture, eye shape, hair color, and facial proportions.
+The woman in the image must look EXACTLY as she appears — same face, same hair, same clothing, same everything. Do not change anything.
 
-Pose & Environment:
-Match the seated study-room setup from the reference video:
-- Sitting cross-legged on a cushioned chair
-- Laptop on small desk in front
-- Same desk height and orientation
-- Same camera angle and framing (medium side angle)
-- Same indoor study room environment
+SHOT — Vertical 9:16, medium side angle from waist up. Static camera, no zoom, no movement.
 
-Lighting:
-Soft neutral indoor lighting.
-No golden-hour tint.
-No cinematic grading.
-Match the natural indoor tone of the reference.
+SCENE — Indoor study room. Sitting cross-legged on a cushioned armchair with a laptop on a small desk in front. Soft neutral indoor lighting, no golden-hour tint.
 
-Motion Timeline (4 seconds total):
+ACTION AND CAMERA MOTION:
+- 0–1s: She types lightly on the laptop. Neutral focused expression.
+- 1–2.5s: Subtle pause. Small eye movement toward screen. Slight shift in expression.
+- 2.5–4s: Slight posture adjustment. Very small head tilt. Natural breathing visible.
+Camera stays completely static throughout.
 
-0–1s:
-She types lightly on the laptop.
-Neutral focused expression.
+No talking. No lip movement. No exaggerated gestures.
 
-1–2.5s:
-Subtle pause.
-Small eye movement toward screen.
-Micro facial shift.
-
-2.5–4s:
-Slight posture adjustment.
-Very small head tilt.
-Natural breathing visible.
-
-Important Constraints:
-- No talking.
-- No lip movement suggesting speech.
-- No exaggerated gestures.
-- No stylization.
-- No identity drift.
-- No beauty smoothing.
-- Maintain realistic skin texture.
-
-Camera:
-Static camera.
-No zoom.
-No cinematic movement.
-Vertical 9:16 framing.""",
+STYLE — Naturalistic aesthetic with sharp 4K clarity, natural indoor tones. No text overlays, subtitles, or captions.""",
 }
 
 CLIP_SPLIT_POINTS = {
