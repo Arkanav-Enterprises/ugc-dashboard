@@ -41,10 +41,9 @@ OUTREACH_DEFAULT_PORT = 587
 
 # ─── PostHog Analytics ──────────────────────────────
 POSTHOG_HOST = os.environ.get("POSTHOG_HOST", "https://us.i.posthog.com")
-POSTHOG_API_KEY = os.environ.get("POSTHOG_API_KEY", "")
 POSTHOG_PROJECTS = {
-    "manifest-lock": 306371,
-    "journal-lock": 313945,
+    "manifest-lock": {"id": 306371, "api_key": os.environ.get("POSTHOG_API_KEY_MANIFEST", "")},
+    "journal-lock": {"id": 313945, "api_key": os.environ.get("POSTHOG_API_KEY_JOURNAL", "")},
 }
 
 import json as _json

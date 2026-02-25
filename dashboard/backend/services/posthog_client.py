@@ -2,7 +2,7 @@
 
 import httpx
 
-from config import POSTHOG_HOST, POSTHOG_API_KEY, POSTHOG_PROJECTS
+from config import POSTHOG_HOST, POSTHOG_PROJECTS
 
 # Per-app default funnel steps from ANALYTICS.md
 DEFAULT_FUNNELS: dict[str, list[str]] = {
@@ -34,22 +34,26 @@ FEATURE_EVENTS: dict[str, list[str]] = {
 }
 
 
-def _project_id(app: str) -> int:
+def _project_config(app: str) -> dict:
     if app not in POSTHOG_PROJECTS:
         raise ValueError(f"Unknown app: {app}. Valid: {list(POSTHOG_PROJECTS.keys())}")
     return POSTHOG_PROJECTS[app]
 
 
-def _headers() -> dict[str, str]:
-    return {"Authorization": f"Bearer {POSTHOG_API_KEY}"}
+def _headers(app: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {_project_config(app)['api_key']}"}
+
+
+def _has_key(app: str) -> bool:
+    return bool(_project_config(app).get("api_key"))
 
 
 async def get_funnel(app: str, steps: list[str] | None = None, date_from: str = "-30d") -> dict:
     """Query PostHog funnel insight for an app."""
-    if not POSTHOG_API_KEY:
-        return {"error": "POSTHOG_API_KEY not configured", "steps": [], "overall_conversion": 0}
+    if not _has_key(app):
+        return {"error": f"POSTHOG_API_KEY_{app.split('-')[0].upper()} not configured", "steps": [], "overall_conversion": 0}
 
-    pid = _project_id(app)
+    pid = _project_config(app)["id"]
     funnel_steps = steps or DEFAULT_FUNNELS.get(app, [])
     if not funnel_steps:
         return {"steps": [], "overall_conversion": 0}
@@ -59,7 +63,7 @@ async def get_funnel(app: str, steps: list[str] | None = None, date_from: str = 
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             f"{POSTHOG_HOST}/api/projects/{pid}/insights/funnel/",
-            headers=_headers(),
+            headers=_headers(app),
             json={
                 "events": events,
                 "date_from": date_from,
@@ -106,10 +110,10 @@ async def get_funnel(app: str, steps: list[str] | None = None, date_from: str = 
 
 async def get_trend(app: str, events: list[str] | None = None, date_from: str = "-30d", interval: str = "day") -> list[dict]:
     """Query PostHog trend insight for an app."""
-    if not POSTHOG_API_KEY:
+    if not _has_key(app):
         return []
 
-    pid = _project_id(app)
+    pid = _project_config(app)["id"]
     event_list = events or FEATURE_EVENTS.get(app, []) + RETENTION_EVENTS
 
     trend_events = [{"id": name, "type": "events", "math": "dau"} for name in event_list]
@@ -117,7 +121,7 @@ async def get_trend(app: str, events: list[str] | None = None, date_from: str = 
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             f"{POSTHOG_HOST}/api/projects/{pid}/insights/trend/",
-            headers=_headers(),
+            headers=_headers(app),
             json={
                 "events": trend_events,
                 "date_from": date_from,
@@ -155,8 +159,8 @@ async def get_combined_summary() -> dict:
 
 async def format_metrics_for_ai() -> str:
     """Format PostHog data as text block for Claude system prompt."""
-    if not POSTHOG_API_KEY:
-        return "[PostHog analytics unavailable — API key not configured]"
+    if not any(_has_key(app) for app in POSTHOG_PROJECTS):
+        return "[PostHog analytics unavailable — no API keys configured]"
 
     try:
         combined = await get_combined_summary()
@@ -168,6 +172,11 @@ async def format_metrics_for_ai() -> str:
     for key, label in [("manifest_lock", "ManifestLock"), ("journal_lock", "JournalLock")]:
         app_data = combined[key]
         funnel = app_data["funnel"]
+
+        if funnel.get("error"):
+            lines.append(f"### {label}\n{funnel['error']}\n")
+            continue
+
         lines.append(f"### {label}")
         lines.append(f"Overall onboarding conversion: {funnel.get('overall_conversion', 0)}%")
 
