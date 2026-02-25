@@ -40,7 +40,7 @@ export function Sidebar() {
   return (
     <aside className="w-56 border-r bg-card flex flex-col shrink-0">
       <div className="p-4 border-b">
-        <h1 className="font-bold text-lg tracking-tight">OpenClaw</h1>
+        <h1 className="font-bold text-lg tracking-tight font-[family-name:var(--font-display)]">OpenClaw</h1>
         <p className="text-xs text-muted-foreground">Dashboard</p>
       </div>
       <nav className="flex-1 p-2 space-y-1">
