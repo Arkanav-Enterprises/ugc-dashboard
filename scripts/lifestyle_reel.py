@@ -65,8 +65,33 @@ def find_font(bold=True):
 
 # ─── Text helpers ────────────────────────────────────
 
+import re
+
+_EMOJI_RE = re.compile(
+    "["
+    "\U0001F600-\U0001F64F"  # emoticons
+    "\U0001F300-\U0001F5FF"  # symbols & pictographs
+    "\U0001F680-\U0001F6FF"  # transport & map
+    "\U0001F1E0-\U0001F1FF"  # flags
+    "\U00002702-\U000027B0"  # dingbats
+    "\U0000FE00-\U0000FE0F"  # variation selectors
+    "\U0000200D"             # zero width joiner
+    "\U00002600-\U000026FF"  # misc symbols
+    "\U0001F900-\U0001F9FF"  # supplemental symbols
+    "\U0001FA00-\U0001FA6F"  # chess symbols
+    "\U0001FA70-\U0001FAFF"  # symbols extended-A
+    "]+", flags=re.UNICODE
+)
+
+
+def strip_emojis(text):
+    """Remove emoji characters that ffmpeg drawtext can't render."""
+    return _EMOJI_RE.sub("", text).strip()
+
+
 def escape_drawtext(text):
     """Escape special chars for ffmpeg drawtext filter."""
+    text = strip_emojis(text)
     text = text.replace("'", "\u2019")
     text = text.replace("\\", "\\\\")
     text = text.replace(":", "\\:")
