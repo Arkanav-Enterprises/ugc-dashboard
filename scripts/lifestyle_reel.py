@@ -25,6 +25,9 @@ from pathlib import Path
 # ─── Config ──────────────────────────────────────────
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+from dotenv import load_dotenv
+load_dotenv(PROJECT_ROOT / ".env", override=True)
 SKILLS_DIR = PROJECT_ROOT / "skills"
 MEMORY_DIR = PROJECT_ROOT / "memory"
 ASSETS_DIR = PROJECT_ROOT / "assets"
