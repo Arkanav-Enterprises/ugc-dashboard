@@ -88,6 +88,16 @@ class PipelineRunStatus(BaseModel):
     output: str = ""
 
 
+class LifestyleReelRequest(BaseModel):
+    dry_run: bool = False
+    no_upload: bool = False
+    scene_1_text: Optional[str] = None
+    scene_2_text: Optional[str] = None
+    scene_3_text: Optional[str] = None
+    scene_1_image: Optional[str] = None
+    scene_2_image: Optional[str] = None
+
+
 class ChatMessage(BaseModel):
     role: str  # user, assistant
     content: str

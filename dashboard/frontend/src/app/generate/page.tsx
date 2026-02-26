@@ -7,6 +7,7 @@ import { ChevronDown, ChevronRight, Play, Loader2 } from "lucide-react";
 import {
   getPersonaConfigs,
   triggerPipelineRun,
+  triggerLifestyleRun,
   getPipelineRunStatus,
   type PersonaConfig,
   type PipelineRunStatus,
@@ -16,7 +17,10 @@ interface TrackedRun extends PipelineRunStatus {
   videoType?: string;
 }
 
+type PipelineMode = "ugc" | "lifestyle";
+
 export default function GenerateVideosPage() {
+  const [mode, setMode] = useState<PipelineMode>("ugc");
   const [configs, setConfigs] = useState<PersonaConfig[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [checkedApps, setCheckedApps] = useState<Set<string>>(new Set());
@@ -29,6 +33,10 @@ export default function GenerateVideosPage() {
   const [runs, setRuns] = useState<TrackedRun[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Lifestyle reel state
+  const [lifestyleDryRun, setLifestyleDryRun] = useState(false);
+  const [lifestyleNoUpload, setLifestyleNoUpload] = useState(false);
 
   useEffect(() => {
     getPersonaConfigs().then((c) => {
@@ -128,12 +136,100 @@ export default function GenerateVideosPage() {
     if (newRuns.some((r) => r.status === "running")) startPolling();
   };
 
+  const handleLifestyleGenerate = async () => {
+    setLaunching(true);
+    try {
+      const status = await triggerLifestyleRun({
+        dry_run: lifestyleDryRun,
+        no_upload: lifestyleNoUpload,
+      });
+      const run: TrackedRun = { ...status, videoType: "lifestyle" };
+      setRuns((prev) => [run, ...prev]);
+      if (run.status === "running") startPolling();
+    } catch {
+      // ignore
+    }
+    setLaunching(false);
+  };
+
   const hasFixedType = currentConfig?.video_types.length === 1;
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Generate Videos</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Generate Videos</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setMode("ugc")}
+            className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
+              mode === "ugc"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "text-muted-foreground hover:bg-accent"
+            }`}
+          >
+            UGC Pipeline
+          </button>
+          <button
+            onClick={() => setMode("lifestyle")}
+            className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
+              mode === "lifestyle"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "text-muted-foreground hover:bg-accent"
+            }`}
+          >
+            Lifestyle Reel
+          </button>
+        </div>
+      </div>
 
+      {mode === "lifestyle" ? (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">
+                Lifestyle Reel — Journal Lock
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                3-scene reel: lifestyle image + hook → lifestyle image + response → screen recording + payoff.
+                Uses Claude for text gen, ffmpeg for assembly. ~$0.01 per reel.
+              </p>
+              <div className="flex gap-2">
+                {[
+                  { label: "Dry Run", value: lifestyleDryRun, set: setLifestyleDryRun },
+                  { label: "No Upload", value: lifestyleNoUpload, set: setLifestyleNoUpload },
+                ].map((opt) => (
+                  <button
+                    key={opt.label}
+                    onClick={() => opt.set(!opt.value)}
+                    className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                      opt.value
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "text-muted-foreground hover:bg-accent"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+          <button
+            onClick={handleLifestyleGenerate}
+            disabled={launching}
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-md bg-primary text-primary-foreground font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
+          >
+            {launching ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            {launching ? "Launching..." : "Generate Lifestyle Reel"}
+          </button>
+        </>
+      ) : (
+        <>
       {/* Persona selector */}
       <div className="flex gap-2">
         {configs.map((cfg) => (
@@ -254,6 +350,8 @@ export default function GenerateVideosPage() {
           ? "Launching..."
           : `Generate ${checkedApps.size} run${checkedApps.size !== 1 ? "s" : ""}`}
       </button>
+        </>
+      )}
 
       {/* Active runs */}
       {runs.length > 0 && (

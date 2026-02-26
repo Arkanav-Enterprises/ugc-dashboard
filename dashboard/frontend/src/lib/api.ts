@@ -100,6 +100,24 @@ export async function getPersonaConfigs() {
   return fetchAPI<PersonaConfig[]>("/api/pipeline/personas");
 }
 
+export interface LifestyleReelRequest {
+  dry_run?: boolean;
+  no_upload?: boolean;
+  scene_1_text?: string;
+  scene_2_text?: string;
+  scene_3_text?: string;
+  scene_1_image?: string;
+  scene_2_image?: string;
+}
+
+export async function triggerLifestyleRun(req: LifestyleReelRequest) {
+  return fetchAPI<PipelineRunStatus>("/api/pipeline/lifestyle-run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+}
+
 /**
  * Stream a chat message via SSE (Server-Sent Events).
  * Falls back to WebSocket for local development.
