@@ -41,8 +41,8 @@ SCREEN_RECORDINGS_DIR = ASSETS_DIR / "screen-recordings" / "journal-lock"
 
 WIDTH, HEIGHT, FPS = 1080, 1920, 30
 BITRATE = "8000k"
-SCENE_1_DURATION = 4.0
-SCENE_2_DURATION = 2.5
+SCENE_1_DURATION = 3.0
+SCENE_2_DURATION = 3.0
 SCENE_3_MAX_DURATION = 12
 
 # ─── Font resolution ─────────────────────────────────
@@ -67,26 +67,10 @@ def find_font(bold=True):
 
 import re
 
-_EMOJI_RE = re.compile(
-    "["
-    "\U0001F600-\U0001F64F"  # emoticons
-    "\U0001F300-\U0001F5FF"  # symbols & pictographs
-    "\U0001F680-\U0001F6FF"  # transport & map
-    "\U0001F1E0-\U0001F1FF"  # flags
-    "\U00002702-\U000027B0"  # dingbats
-    "\U0000FE00-\U0000FE0F"  # variation selectors
-    "\U0000200D"             # zero width joiner
-    "\U00002600-\U000026FF"  # misc symbols
-    "\U0001F900-\U0001F9FF"  # supplemental symbols
-    "\U0001FA00-\U0001FA6F"  # chess symbols
-    "\U0001FA70-\U0001FAFF"  # symbols extended-A
-    "]+", flags=re.UNICODE
-)
-
 
 def strip_emojis(text):
-    """Remove emoji characters that ffmpeg drawtext can't render."""
-    return _EMOJI_RE.sub("", text).strip()
+    """Remove any non-ASCII characters that ffmpeg drawtext can't render."""
+    return re.sub(r'[^\x00-\x7F]+', '', text).strip()
 
 
 def escape_drawtext(text):
@@ -210,7 +194,7 @@ Rules:
 - NEVER mention the app name in any overlay text
 - Scene 1 text: max 60 chars. First person, creates intrigue.
 - Scene 2 text: max 40 chars. Dialogue or reaction in quotes, OR a short follow-up.
-- Scene 3 text: max 50 chars. The "aha" reveal. Can include one emoji.
+- Scene 3 text: max 50 chars. The "aha" reveal. NO emojis anywhere — plain ASCII text only.
 - The story should feel like a real conversation or situation, not an ad.
 - Vary the angles: boyfriend/friend/roommate/mom reactions, personal discovery, challenge results, before/after moments
 
@@ -254,7 +238,7 @@ def run_ffmpeg(args, label=""):
     return True
 
 
-def build_drawtext(text, font_path, font_size=48, y_ratio=0.45):
+def build_drawtext(text, font_path, font_size=55, y_ratio=0.45):
     """Build drawtext filter with black pill background."""
     escaped = escape_drawtext(text)
     lines = wrap_text(text)
@@ -288,7 +272,7 @@ def build_drawtext(text, font_path, font_size=48, y_ratio=0.45):
 
 
 def build_scene_image(image_path, text, output_path, duration, font_path,
-                      font_size=48, y_ratio=0.45):
+                      font_size=55, y_ratio=0.45):
     """Build a scene from a static image with Ken Burns + text overlay."""
     total_frames = int(duration * FPS)
     drawtext = build_drawtext(text, font_path, font_size, y_ratio)
@@ -317,7 +301,7 @@ def build_scene_image(image_path, text, output_path, duration, font_path,
 
 
 def build_scene_screen(recording_path, text, output_path, font_path,
-                       max_duration=SCENE_3_MAX_DURATION, font_size=42, y_ratio=0.75):
+                       max_duration=SCENE_3_MAX_DURATION, font_size=48, y_ratio=0.75):
     """Build scene 3 from screen recording with text overlay."""
     drawtext = build_drawtext(text, font_path, font_size, y_ratio)
 
@@ -494,7 +478,7 @@ def main():
         # Scene 1: lifestyle image + hook (center, 48px)
         print("  Building scene 1 (hook)...")
         ok = build_scene_image(scene_1_path, content["scene_1_text"], scene_1_out,
-                               SCENE_1_DURATION, font_path, font_size=48, y_ratio=0.45)
+                               SCENE_1_DURATION, font_path, font_size=55, y_ratio=0.45)
         if not ok:
             print("FAILED: Scene 1")
             sys.exit(1)
@@ -502,7 +486,7 @@ def main():
         # Scene 2: lifestyle image + response (center, 48px)
         print("  Building scene 2 (response)...")
         ok = build_scene_image(scene_2_path, content["scene_2_text"], scene_2_out,
-                               SCENE_2_DURATION, font_path, font_size=48, y_ratio=0.45)
+                               SCENE_2_DURATION, font_path, font_size=55, y_ratio=0.45)
         if not ok:
             print("FAILED: Scene 2")
             sys.exit(1)
