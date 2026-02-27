@@ -298,7 +298,45 @@ First person, authentic voice matching the persona."""
     if raw.startswith("```"):
         raw = raw.split("\n", 1)[1].rsplit("```", 1)[0]
 
-    return json.loads(raw)
+    return _parse_json(raw)
+
+
+def _parse_json(raw: str) -> dict:
+    """Parse JSON from model output, repairing common issues."""
+    import re
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    # Fix 1: unescaped newlines inside string values — replace with \\n
+    repaired = re.sub(
+        r'(?<=": ")(.*?)(?="(?:,|\s*\}))',
+        lambda m: m.group(0).replace("\n", "\\n"),
+        raw,
+        flags=re.DOTALL,
+    )
+    try:
+        return json.loads(repaired)
+    except json.JSONDecodeError:
+        pass
+
+    # Fix 2: extract fields individually with regex as last resort
+    fields = {}
+    for key in ("pov_text", "reaction_text", "suggested_screen_recording", "caption", "hashtags"):
+        match = re.search(rf'"{key}"\s*:\s*"((?:[^"\\]|\\.)*)"', raw, re.DOTALL)
+        if match:
+            fields[key] = match.group(1).replace("\\n", "\n").replace('\\"', '"')
+
+    if "pov_text" in fields and "reaction_text" in fields:
+        # Fill defaults for optional fields
+        fields.setdefault("suggested_screen_recording", "any")
+        fields.setdefault("caption", "")
+        fields.setdefault("hashtags", "")
+        return fields
+
+    raise json.JSONDecodeError(f"Could not parse model output", raw, 0)
 
 
 # ---------------------------------------------------------------------------
