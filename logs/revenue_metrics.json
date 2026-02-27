@@ -1,0 +1,23 @@
+[
+  {
+    "timestamp": "2026-02-27 07:08 UTC",
+    "projects": {
+      "manifest_lock": {
+        "active_trials": 2,
+        "active_subscriptions": 1,
+        "mrr": 27,
+        "revenue": 6,
+        "new_customers": 41,
+        "active_users": 42
+      },
+      "journal_lock": {
+        "active_trials": 0,
+        "active_subscriptions": 0,
+        "mrr": 0,
+        "revenue": 0,
+        "new_customers": 35,
+        "active_users": 35
+      }
+    }
+  }
+]
