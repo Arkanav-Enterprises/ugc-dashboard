@@ -47,11 +47,11 @@ ACCOUNTS = {
     # Riley — breakout potential, spiky distribution (1,144-view hit with only 6 reels)
     "riley.manifests":  {"persona": "riley",  "app": "manifest-lock", "handle": "@riley.manifests"},
     "riley.journals":   {"persona": "riley",  "app": "journal-lock",  "handle": "@riley.journals"},
-    # Sophie avatar — sanyahealing + sophie.unplugs (both JournalLock)
-    "sanyahealing":     {"persona": "sophie", "app": "journal-lock",  "handle": "@sanyahealing"},
-    "sophie.unplugs":   {"persona": "sophie", "app": "journal-lock",  "handle": "@sophie.unplugs"},
-    # Sanya avatar — emillywilks (ManifestLock)
-    "emillywilks":      {"persona": "sanya",  "app": "manifest-lock", "handle": "@emillywilks"},
+    # Sanya avatar — sanyahealing + sophie.unplugs (both JournalLock)
+    "sanyahealing":     {"persona": "sanya",  "app": "journal-lock",  "handle": "@sanyahealing"},
+    "sophie.unplugs":   {"persona": "sanya",  "app": "journal-lock",  "handle": "@sophie.unplugs"},
+    # Emilly avatar — emillywilks (ManifestLock)
+    "emillywilks":      {"persona": "emilly", "app": "manifest-lock", "handle": "@emillywilks"},
 }
 
 # Category weights — 40/30/15/15 split

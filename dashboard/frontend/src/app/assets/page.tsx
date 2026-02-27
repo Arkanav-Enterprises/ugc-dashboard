@@ -17,7 +17,7 @@ const PERSONA_COLORS: Record<string, string> = {
   aliyah: "#8b5cf6",
   riley: "#10b981",
   sanya: "#ef4444",
-  sophie: "#3b82f6",
+  emilly: "#3b82f6",
 };
 
 export default function AssetManagerPage() {

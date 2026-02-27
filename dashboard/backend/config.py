@@ -53,12 +53,12 @@ try:
 except _json.JSONDecodeError:
     OUTREACH_ACCOUNTS = []
 
-PERSONAS = ["aliyah", "riley", "sanya", "sophie"]
+PERSONAS = ["aliyah", "riley", "sanya", "emilly"]
 PERSONA_COLORS = {
     "aliyah": "#8b5cf6",  # purple
     "riley": "#10b981",   # emerald
     "sanya": "#ef4444",   # warm red
-    "sophie": "#3b82f6",  # blue
+    "emilly": "#3b82f6",  # blue
 }
 
 # 7 accounts used by autopilot.py
@@ -84,11 +84,11 @@ PERSONA_APPS: dict[str, dict] = {
         "video_types": ["default"],
     },
     "sanya": {
-        "apps": [{"name": "Manifest Lock", "slug": "manifest-lock"}],
+        "apps": [{"name": "Journal Lock", "slug": "journal-lock"}],
         "video_types": ["default"],
     },
-    "sophie": {
-        "apps": [{"name": "Journal Lock", "slug": "journal-lock"}],
+    "emilly": {
+        "apps": [{"name": "Manifest Lock", "slug": "manifest-lock"}],
         "video_types": ["default"],
     },
 }
