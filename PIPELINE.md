@@ -71,10 +71,10 @@ Daily Pipeline
 | @riley.manifests | Riley | Manifest Lock | MEDIUM | ~200 (spiky) |
 | @riley.journals | Riley | Journal Lock | MEDIUM | ~200 |
 | @sanyahealing | Sanya | Journal Lock | LOW | ~150-200 |
-| @sophie.unplugs | Sophie | Manifest Lock | DEPRIORITIZED | ~130-140 |
-| @emillywilks | Sophie | Manifest Lock | DEPRIORITIZED | ~130-140 |
+| @sophie.unplugs | Sanya | Journal Lock | LOW | ~130-140 |
+| @emillywilks | Emilly | Manifest Lock | LOW | ~150-200 |
 
-Dedup logic ensures personas with two accounts (Aliyah, Riley, Sophie) never use the same hook on the same day.
+Dedup logic ensures personas with two accounts (Aliyah, Riley, Sanya) never use the same hook on the same day.
 
 ---
 
@@ -92,12 +92,12 @@ Dedup logic ensures personas with two accounts (Aliyah, Riley, Sophie) never use
 │   ├── generate_variants.py      # DEPRECATED — was Veo video generation
 │   └── generate_ugc_video.py     # DEPRECATED — was Replicate avatar generation
 ├── assets/
-│   ├── sanya/                    # Pre-generated clips (DO NOT regenerate)
-│   │   ├── hook/                 #   12 hook clips
-│   │   └── reaction/             #   10 reaction clips
-│   ├── sophie/                   # Pre-generated clips
+│   ├── sanya/                    # Sanya avatar clips (@sanyahealing, @sophie.unplugs)
 │   │   ├── hook/                 #   3 hook clips
 │   │   └── reaction/             #   3 reaction clips
+│   ├── emilly/                   # Emilly avatar clips (@emillywilks)
+│   │   ├── hook/                 #   12 hook clips
+│   │   └── reaction/             #   10 reaction clips
 │   ├── aliyah/                   # Pre-generated clips
 │   │   ├── hook/                 #   1 hook clip
 │   │   └── reaction/             #   1 reaction clip
@@ -114,8 +114,8 @@ Dedup logic ensures personas with two accounts (Aliyah, Riley, Sophie) never use
 │   ├── personas/
 │   │   ├── aliyah.md             # Aliyah voice (top performer)
 │   │   ├── riley.md              # Riley voice (breakout potential)
-│   │   ├── sanya.md              # Sanya voice (JournalLock)
-│   │   └── sophie.md             # Sophie voice (deprioritized)
+│   │   ├── sanya.md              # Sanya voice (@sanyahealing + @sophie.unplugs, JournalLock)
+│   │   └── emilly.md             # Emilly voice (@emillywilks, ManifestLock)
 │   ├── content/
 │   │   ├── hook-bank.md          # 46 ready-to-use hooks by pattern type
 │   │   ├── hook-architecture.md  # Hook formulas and quality rules

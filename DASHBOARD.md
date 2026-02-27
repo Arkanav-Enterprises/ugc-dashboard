@@ -133,7 +133,7 @@ The Agent Chat page has four action buttons in the left panel:
 | **Generate Reel** | ~$0.61 | Yes | Generates a video clip via Replicate (Veo 3.1) for Sanya and assembles a full reel |
 | **Dry Run** | Free | No | Runs the pipeline with `--dry-run` — generates text only, no video |
 | **Caption Only** | Free | No | Runs with `--dry-run --skip-gen` — generates caption text only |
-| **Run All Personas** | ~$1.83 | Yes | Generates video clips for all 3 personas (Sanya, Sophie, Aliyah) |
+| **Run All Personas** | ~$0.07 | No | Generates text for all 7 accounts (Aliyah, Riley, Sanya, Emilly) |
 
 Costly actions (Generate Reel, Run All) show a confirmation dialog with the estimated cost before executing. All buttons show a spinner while running, disable during execution, and display the pipeline output directly in the chat when complete.
 
@@ -200,7 +200,7 @@ The Agent Chat and the video pipeline (`autopilot_video.py`) load **different su
 - `analytics/proven-hooks.md` — hooks that actually performed well
 - `asset-usage.md` — tracks which assets have been used to avoid repeats
 
-The pipeline also dynamically picks the right app file (`manifest-lock.md` for Sophie, `journal-lock.md` for Sanya) and the right persona file. In Agent Chat, you'd need to manually check those boxes if you want that context.
+The pipeline also dynamically picks the right app file (`manifest-lock.md` for Emilly, `journal-lock.md` for Sanya) and the right persona file. In Agent Chat, you'd need to manually check those boxes if you want that context.
 
 **Tip:** When using Agent Chat to generate content for a specific persona, check that persona's file + `text-overlays.md` + `caption-formulas.md` + `proven-hooks.md` to match what the pipeline would see.
 
@@ -294,7 +294,7 @@ The `/generate` page has a **UGC / Lifestyle Reel** mode toggle at the top.
 
 ### UGC Mode
 
-- Persona selector buttons (sanya, sophie, aliyah, olivia, riley)
+- Persona selector buttons (aliyah, riley, sanya, emilly)
 - App checkboxes (which apps to generate for)
 - Video type dropdown (auto rotation or manual override)
 - Option toggles: Dry Run, No Upload, Skip Gen
