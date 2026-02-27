@@ -96,6 +96,15 @@ class LifestyleReelRequest(BaseModel):
     scene_2_image: Optional[str] = None
 
 
+class AutoJournalReelRequest(BaseModel):
+    dry_run: bool = False
+    no_upload: bool = False
+    style: Optional[str] = None
+    category: Optional[str] = None
+    hook_text: Optional[str] = None
+    payoff_text: Optional[str] = None
+
+
 class ChatMessage(BaseModel):
     role: str  # user, assistant
     content: str

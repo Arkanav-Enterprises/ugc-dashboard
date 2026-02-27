@@ -3,9 +3,9 @@
 from fastapi import APIRouter, HTTPException
 
 from config import PERSONA_APPS, PERSONA_COLORS
-from models import PersonaAppInfo, PersonaConfig, PipelineRunRequest, LifestyleReelRequest
+from models import PersonaAppInfo, PersonaConfig, PipelineRunRequest, LifestyleReelRequest, AutoJournalReelRequest
 from services.log_reader import get_overview_stats, get_persona_stats
-from services.pipeline_runner import start_pipeline_run, start_lifestyle_run, get_run_status, list_runs
+from services.pipeline_runner import start_pipeline_run, start_lifestyle_run, start_autojournal_run, get_run_status, list_runs
 
 router = APIRouter(prefix="/api/pipeline", tags=["pipeline"])
 
@@ -44,6 +44,12 @@ def trigger_run(req: PipelineRunRequest):
 def trigger_lifestyle_run(req: LifestyleReelRequest):
     """Trigger a lifestyle reel pipeline run."""
     return start_lifestyle_run(req)
+
+
+@router.post("/autojournal-run")
+def trigger_autojournal_run(req: AutoJournalReelRequest):
+    """Trigger an AutoJournal reel pipeline run."""
+    return start_autojournal_run(req)
 
 
 @router.get("/run/{run_id}")

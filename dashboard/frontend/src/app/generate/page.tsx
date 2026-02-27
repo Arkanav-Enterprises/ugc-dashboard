@@ -7,6 +7,7 @@ import { ChevronDown, ChevronRight, Play, Loader2 } from "lucide-react";
 import {
   triggerPipelineRun,
   triggerLifestyleRun,
+  triggerAutoJournalRun,
   getPipelineRunStatus,
   type PipelineRunStatus,
 } from "@/lib/api";
@@ -38,7 +39,10 @@ function accountColor(account: string): string {
   return ACCOUNT_COLORS[persona] || ACCOUNT_COLORS[account] || "#6b7280";
 }
 
-type PipelineMode = "content" | "lifestyle";
+type PipelineMode = "content" | "lifestyle" | "autojournal";
+
+const AUTOJOURNAL_STYLES = ["dark", "cream", "terracotta", "journal", "dark_accent"] as const;
+const AUTOJOURNAL_CATEGORIES = ["A", "B", "C", "D"] as const;
 
 export default function GenerateContentPage() {
   const [mode, setMode] = useState<PipelineMode>("content");
@@ -57,6 +61,12 @@ export default function GenerateContentPage() {
   // Lifestyle reel state
   const [lifestyleDryRun, setLifestyleDryRun] = useState(false);
   const [lifestyleNoUpload, setLifestyleNoUpload] = useState(false);
+
+  // AutoJournal reel state
+  const [ajDryRun, setAjDryRun] = useState(false);
+  const [ajNoUpload, setAjNoUpload] = useState(false);
+  const [ajStyle, setAjStyle] = useState<string>("");
+  const [ajCategory, setAjCategory] = useState<string>("");
 
   const toggleAccount = (account: string) => {
     setSelectedAccounts((prev) => {
@@ -146,6 +156,24 @@ export default function GenerateContentPage() {
     setLaunching(false);
   };
 
+  const handleAutoJournalGenerate = async () => {
+    setLaunching(true);
+    try {
+      const status = await triggerAutoJournalRun({
+        dry_run: ajDryRun,
+        no_upload: ajNoUpload,
+        style: ajStyle || undefined,
+        category: ajCategory || undefined,
+      });
+      const run: TrackedRun = { ...status, accountName: "autojournal" };
+      setRuns((prev) => [run, ...prev]);
+      if (run.status === "running" || run.status === "queued") startPolling();
+    } catch {
+      // ignore
+    }
+    setLaunching(false);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -171,10 +199,124 @@ export default function GenerateContentPage() {
           >
             Lifestyle Reel
           </button>
+          <button
+            onClick={() => setMode("autojournal")}
+            className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
+              mode === "autojournal"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "text-muted-foreground hover:bg-accent"
+            }`}
+          >
+            AutoJournal Reel
+          </button>
         </div>
       </div>
 
-      {mode === "lifestyle" ? (
+      {mode === "autojournal" ? (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">
+                AutoJournal Reel
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                2-scene reel: styled text hook → screen recording payoff.
+                Uses Claude for text gen, ffmpeg for assembly. ~$0.01 per reel.
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Style</label>
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      onClick={() => setAjStyle("")}
+                      className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                        !ajStyle
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "text-muted-foreground hover:bg-accent"
+                      }`}
+                    >
+                      Auto
+                    </button>
+                    {AUTOJOURNAL_STYLES.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setAjStyle(ajStyle === s ? "" : s)}
+                        className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                          ajStyle === s
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "text-muted-foreground hover:bg-accent"
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Category</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setAjCategory("")}
+                      className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                        !ajCategory
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "text-muted-foreground hover:bg-accent"
+                      }`}
+                    >
+                      Auto
+                    </button>
+                    {AUTOJOURNAL_CATEGORIES.map((c) => (
+                      <button
+                        key={c}
+                        onClick={() => setAjCategory(ajCategory === c ? "" : c)}
+                        className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                          ajCategory === c
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "text-muted-foreground hover:bg-accent"
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {[
+                    { label: "Dry Run", value: ajDryRun, set: setAjDryRun },
+                    { label: "No Upload", value: ajNoUpload, set: setAjNoUpload },
+                  ].map((opt) => (
+                    <button
+                      key={opt.label}
+                      onClick={() => opt.set(!opt.value)}
+                      className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                        opt.value
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "text-muted-foreground hover:bg-accent"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <button
+            onClick={handleAutoJournalGenerate}
+            disabled={launching}
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-md bg-primary text-primary-foreground font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
+          >
+            {launching ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            {launching ? "Launching..." : "Generate AutoJournal Reel"}
+          </button>
+        </>
+      ) : mode === "lifestyle" ? (
         <>
           <Card>
             <CardHeader>

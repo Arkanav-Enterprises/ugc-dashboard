@@ -118,6 +118,23 @@ export async function triggerLifestyleRun(req: LifestyleReelRequest) {
   });
 }
 
+export interface AutoJournalReelRequest {
+  dry_run?: boolean;
+  no_upload?: boolean;
+  style?: string;
+  category?: string;
+  hook_text?: string;
+  payoff_text?: string;
+}
+
+export async function triggerAutoJournalRun(req: AutoJournalReelRequest) {
+  return fetchAPI<PipelineRunStatus>("/api/pipeline/autojournal-run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+}
+
 /**
  * Stream a chat message via SSE (Server-Sent Events).
  * Falls back to WebSocket for local development.
