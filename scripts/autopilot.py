@@ -47,11 +47,10 @@ ACCOUNTS = {
     # Riley — breakout potential, spiky distribution (1,144-view hit with only 6 reels)
     "riley.manifests":  {"persona": "riley",  "app": "manifest-lock", "handle": "@riley.manifests"},
     "riley.journals":   {"persona": "riley",  "app": "journal-lock",  "handle": "@riley.journals"},
-    # Sanya — consistent but lower ceiling (~150-200 views/reel)
+    # Sanya avatar — used across 3 accounts
     "sanyahealing":     {"persona": "sanya",  "app": "journal-lock",  "handle": "@sanyahealing"},
-    # Sophie — deprioritized (~130-140 views/reel, weakest performer)
-    "sophie.unplugs":   {"persona": "sophie", "app": "manifest-lock", "handle": "@sophie.unplugs"},
-    "emillywilks":      {"persona": "sophie", "app": "manifest-lock", "handle": "@emillywilks"},
+    "sophie.unplugs":   {"persona": "sanya",  "app": "journal-lock",  "handle": "@sophie.unplugs"},
+    "emillywilks":      {"persona": "sanya",  "app": "manifest-lock", "handle": "@emillywilks"},
 }
 
 # Category weights — 40/30/15/15 split
@@ -573,8 +572,8 @@ def run_account(account: str, category_override: str | None = None,
     # 3. Check dedup (personas with two accounts must not duplicate hooks)
     dedup_hooks = []
     dedup_pairs = {
-        "emillywilks": "sophie.unplugs",
-        "sophie.unplugs": "emillywilks",
+        "sanyahealing": "sophie.unplugs",
+        "sophie.unplugs": "sanyahealing",
         "aliyah.journals": "aliyah.manifests",
         "aliyah.manifests": "aliyah.journals",
         "riley.journals": "riley.manifests",
