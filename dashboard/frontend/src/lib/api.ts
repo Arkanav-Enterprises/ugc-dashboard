@@ -814,6 +814,35 @@ export async function streamAnalyticsAsk(
   onDone();
 }
 
+// ─── Revenue (RevenueCat) ───────────────────────────
+
+export interface RevenueMetrics {
+  mrr: number;
+  revenue: number;
+  new_customers: number;
+  active_users: number;
+  active_subscriptions: number;
+  active_trials: number;
+}
+
+export interface RevenueSnapshot {
+  timestamp: string;
+  projects: Record<string, RevenueMetrics>;
+}
+
+export interface RevenueCurrentResponse {
+  current: RevenueSnapshot;
+  previous: RevenueSnapshot | null;
+}
+
+export async function getRevenueCurrent() {
+  return fetchAPI<RevenueCurrentResponse>("/api/revenue/current");
+}
+
+export async function getRevenueHistory() {
+  return fetchAPI<RevenueSnapshot[]>("/api/revenue/history");
+}
+
 export async function streamRedditAnalysis(
   query: string,
   threads: RedditThread[],

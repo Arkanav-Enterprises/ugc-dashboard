@@ -34,6 +34,30 @@ Uploads assembled reels to Google Drive (`manifest-social-videos` remote). Confi
 
 Video processing — splitting raw Veo clips into hook/reaction segments, trimming, re-encoding. Used by `autopilot_video.py` and `assemble_video.py`.
 
+## PostHog Query API
+
+Live analytics for both apps (funnel conversion, DAU trends). Used by the dashboard's Analytics page and Agent Chat (when "Analytics Data" is checked).
+
+- **Endpoint**: `POST https://us.i.posthog.com/api/projects/{project_id}/query/`
+- **Query types**: `FunnelsQuery` (onboarding funnel steps) and `TrendsQuery` (DAU, feature usage)
+- **Auth**: `Authorization: Bearer {personal_api_key}` header
+- Two separate PostHog accounts — one per app:
+  - ManifestLock: project 306371, key in `.env` as `POSTHOG_API_KEY_MANIFEST`
+  - JournalLock: project 313945, key in `.env` as `POSTHOG_API_KEY_JOURNAL`
+- Backend client: `dashboard/backend/services/posthog_client.py`
+
+## RevenueCat v2 API
+
+Daily MRR, revenue, subscribers, and trial metrics for both apps. Fetched by `scripts/fetch_revenue_metrics.py`, written to `memory/revenue-metrics.md` for pipeline context.
+
+- **Endpoint**: `GET https://api.revenuecat.com/v2/projects/{project_id}/metrics/overview`
+- **Auth**: `Authorization: Bearer {v2_secret_key}` — one key per project, scoped to `project_configuration:metrics:read`
+- **Metrics**: mrr, revenue (28d), new_customers (28d), active_users, active_subscriptions, active_trials
+- Two separate keys — one per project:
+  - ManifestLock: key in `.env` as `RC_MANIFEST_LOCK_KEY`, project ID as `RC_MANIFEST_LOCK_PROJECT_ID`
+  - JournalLock: key in `.env` as `RC_JOURNAL_LOCK_KEY`, project ID as `RC_JOURNAL_LOCK_PROJECT_ID`
+- Runs daily at 7 AM IST via cron
+
 ## Gmail SMTP
 
-Email notifications for completed reels and text briefs. Credentials in `.env` as `GMAIL_USER` and `GMAIL_APP_PASSWORD`.
+Email notifications for completed reels and text briefs. Credentials in `.env` as `SMTP_USER` and `SMTP_PASS`.
