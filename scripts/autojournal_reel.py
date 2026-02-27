@@ -36,7 +36,7 @@ load_dotenv(PROJECT_ROOT / ".env", override=True)
 
 SKILLS_DIR = PROJECT_ROOT / "skills"
 MEMORY_DIR = PROJECT_ROOT / "memory"
-ASSETS_DIR = PROJECT_ROOT / "assets" / "autojournal"
+ASSETS_DIR = PROJECT_ROOT / "assets"
 FONTS_DIR = PROJECT_ROOT / "fonts"
 LOGS_DIR = PROJECT_ROOT / "logs"
 VIDEO_OUTPUT_DIR = PROJECT_ROOT / "video_output"
@@ -47,7 +47,7 @@ SCENE1_DURATION = 2.5
 GDRIVE_FOLDER = "autojournal-social-videos"
 JSONL_PATH = LOGS_DIR / "autojournal_reel.jsonl"
 
-SCREEN_RECORDINGS_DIR = ASSETS_DIR / "screen-recordings"
+SCREEN_RECORDINGS_DIR = ASSETS_DIR / "screen-recordings" / "autojournal"
 
 # ─── Style definitions ───────────────────────────────
 
