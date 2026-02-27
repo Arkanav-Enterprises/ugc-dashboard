@@ -70,7 +70,7 @@ export default function GenerateContentPage() {
   // Poll active runs
   const pollRuns = useCallback(() => {
     setRuns((prev) => {
-      const active = prev.filter((r) => r.status === "running");
+      const active = prev.filter((r) => r.status === "running" || r.status === "queued");
       if (active.length === 0) {
         if (pollRef.current) clearInterval(pollRef.current);
         pollRef.current = null;
@@ -127,7 +127,7 @@ export default function GenerateContentPage() {
 
     setRuns((prev) => [...newRuns, ...prev]);
     setLaunching(false);
-    if (newRuns.some((r) => r.status === "running")) startPolling();
+    if (newRuns.some((r) => r.status === "running" || r.status === "queued")) startPolling();
   };
 
   const handleLifestyleGenerate = async () => {
@@ -139,7 +139,7 @@ export default function GenerateContentPage() {
       });
       const run: TrackedRun = { ...status, accountName: "lifestyle" };
       setRuns((prev) => [run, ...prev]);
-      if (run.status === "running") startPolling();
+      if (run.status === "running" || run.status === "queued") startPolling();
     } catch {
       // ignore
     }
@@ -347,7 +347,7 @@ export default function GenerateContentPage() {
                             : "secondary"
                         }
                       >
-                        {run.status === "running" && (
+                        {(run.status === "running" || run.status === "queued") && (
                           <Loader2 className="h-3 w-3 animate-spin mr-1" />
                         )}
                         {run.status}

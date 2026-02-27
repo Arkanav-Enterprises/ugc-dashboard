@@ -1,5 +1,6 @@
 """Subprocess management for pipeline runs."""
 
+import queue
 import subprocess
 import threading
 import uuid
@@ -11,9 +12,53 @@ from models import PipelineRunRequest, PipelineRunStatus, LifestyleReelRequest
 # In-memory store for run tracking
 _runs: dict[str, dict] = {}
 
+# Sequential queue — runs execute one at a time to avoid overloading the VPS
+_queue: queue.Queue[tuple[str, list[str]]] = queue.Queue()
+_worker_started = False
+_worker_lock = threading.Lock()
+
+
+def _ensure_worker():
+    """Start the background worker thread (once)."""
+    global _worker_started
+    with _worker_lock:
+        if _worker_started:
+            return
+        _worker_started = True
+        thread = threading.Thread(target=_worker_loop, daemon=True)
+        thread.start()
+
+
+def _worker_loop():
+    """Process queued runs one at a time."""
+    while True:
+        run_id, cmd = _queue.get()
+        try:
+            _runs[run_id]["status"] = "running"
+            proc = subprocess.Popen(
+                cmd,
+                cwd=str(PROJECT_ROOT),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                env=None,  # inherit env (dotenv loaded in config)
+            )
+            _runs[run_id]["process"] = proc
+            output_lines = []
+            for line in proc.stdout:
+                output_lines.append(line)
+                _runs[run_id]["output"] = "".join(output_lines)
+            proc.wait()
+            _runs[run_id]["status"] = "completed" if proc.returncode == 0 else "failed"
+        except Exception as e:
+            _runs[run_id]["status"] = "failed"
+            _runs[run_id]["output"] += f"\nError: {e}"
+        finally:
+            _queue.task_done()
+
 
 def start_pipeline_run(req: PipelineRunRequest) -> PipelineRunStatus:
-    """Start a pipeline run as a subprocess."""
+    """Queue a pipeline run for sequential execution."""
     run_id = str(uuid.uuid4())[:8]
 
     cmd = [str(PROJECT_VENV_PYTHON), str(SCRIPTS_DIR / "autopilot.py"),
@@ -33,7 +78,7 @@ def start_pipeline_run(req: PipelineRunRequest) -> PipelineRunStatus:
 
     _runs[run_id] = {
         "id": run_id,
-        "status": "running",
+        "status": "queued",
         "persona": persona,
         "app": None,
         "started_at": datetime.now(timezone.utc).isoformat(),
@@ -41,33 +86,12 @@ def start_pipeline_run(req: PipelineRunRequest) -> PipelineRunStatus:
         "process": None,
     }
 
-    def _run():
-        try:
-            proc = subprocess.Popen(
-                cmd,
-                cwd=str(PROJECT_ROOT),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                env=None,  # inherit env (dotenv loaded in config)
-            )
-            _runs[run_id]["process"] = proc
-            output_lines = []
-            for line in proc.stdout:
-                output_lines.append(line)
-                _runs[run_id]["output"] = "".join(output_lines)
-            proc.wait()
-            _runs[run_id]["status"] = "completed" if proc.returncode == 0 else "failed"
-        except Exception as e:
-            _runs[run_id]["status"] = "failed"
-            _runs[run_id]["output"] += f"\nError: {e}"
-
-    thread = threading.Thread(target=_run, daemon=True)
-    thread.start()
+    _ensure_worker()
+    _queue.put((run_id, cmd))
 
     return PipelineRunStatus(
         id=run_id,
-        status="running",
+        status="queued",
         persona=persona,
         app=None,
         started_at=_runs[run_id]["started_at"],
@@ -75,7 +99,7 @@ def start_pipeline_run(req: PipelineRunRequest) -> PipelineRunStatus:
 
 
 def start_lifestyle_run(req: LifestyleReelRequest) -> PipelineRunStatus:
-    """Start a lifestyle reel pipeline run."""
+    """Queue a lifestyle reel pipeline run for sequential execution."""
     run_id = str(uuid.uuid4())[:8]
 
     cmd = [str(PROJECT_VENV_PYTHON), str(SCRIPTS_DIR / "lifestyle_reel.py")]
@@ -97,7 +121,7 @@ def start_lifestyle_run(req: LifestyleReelRequest) -> PipelineRunStatus:
 
     _runs[run_id] = {
         "id": run_id,
-        "status": "running",
+        "status": "queued",
         "persona": "lifestyle",
         "app": "journal-lock",
         "started_at": datetime.now(timezone.utc).isoformat(),
@@ -105,33 +129,12 @@ def start_lifestyle_run(req: LifestyleReelRequest) -> PipelineRunStatus:
         "process": None,
     }
 
-    def _run():
-        try:
-            proc = subprocess.Popen(
-                cmd,
-                cwd=str(PROJECT_ROOT),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                env=None,
-            )
-            _runs[run_id]["process"] = proc
-            output_lines = []
-            for line in proc.stdout:
-                output_lines.append(line)
-                _runs[run_id]["output"] = "".join(output_lines)
-            proc.wait()
-            _runs[run_id]["status"] = "completed" if proc.returncode == 0 else "failed"
-        except Exception as e:
-            _runs[run_id]["status"] = "failed"
-            _runs[run_id]["output"] += f"\nError: {e}"
-
-    thread = threading.Thread(target=_run, daemon=True)
-    thread.start()
+    _ensure_worker()
+    _queue.put((run_id, cmd))
 
     return PipelineRunStatus(
         id=run_id,
-        status="running",
+        status="queued",
         persona="lifestyle",
         app="journal-lock",
         started_at=_runs[run_id]["started_at"],
