@@ -73,6 +73,7 @@ class PipelineRunRequest(BaseModel):
     account: str = "aliyah.manifests"
     dry_run: bool = False
     no_upload: bool = False
+    no_reaction: bool = False
     idea_only: bool = False
 
 

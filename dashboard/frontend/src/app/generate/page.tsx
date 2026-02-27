@@ -47,6 +47,7 @@ export default function GenerateContentPage() {
   );
   const [dryRun, setDryRun] = useState(false);
   const [noUpload, setNoUpload] = useState(false);
+  const [noReaction, setNoReaction] = useState(false);
   const [ideaOnly, setIdeaOnly] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [runs, setRuns] = useState<TrackedRun[]>([]);
@@ -108,6 +109,7 @@ export default function GenerateContentPage() {
         account,
         dry_run: dryRun,
         no_upload: noUpload,
+        no_reaction: noReaction,
         idea_only: ideaOnly,
       }).then(
         (status): TrackedRun => ({
@@ -259,6 +261,7 @@ export default function GenerateContentPage() {
             {[
               { label: "Dry Run", value: dryRun, set: setDryRun },
               { label: "No Upload", value: noUpload, set: setNoUpload },
+              { label: "No Reaction", value: noReaction, set: setNoReaction },
               { label: "Idea Only", value: ideaOnly, set: setIdeaOnly },
             ].map((opt) => (
               <button

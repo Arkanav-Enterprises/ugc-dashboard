@@ -23,6 +23,8 @@ def start_pipeline_run(req: PipelineRunRequest) -> PipelineRunStatus:
         cmd.append("--dry-run")
     if req.no_upload:
         cmd.append("--no-upload")
+    if req.no_reaction:
+        cmd.append("--no-reaction")
     if req.idea_only:
         cmd.append("--idea-only")
 

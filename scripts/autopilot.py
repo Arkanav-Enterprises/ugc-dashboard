@@ -357,7 +357,8 @@ def send_email(subject: str, body: str):
 # ---------------------------------------------------------------------------
 
 def assemble_reel(account: str, content: dict, assets: dict,
-                  dry_run: bool = False, no_upload: bool = False) -> str | None:
+                  dry_run: bool = False, no_upload: bool = False,
+                  no_reaction: bool = False) -> str | None:
     """Assemble the final reel via assemble_video.py and optionally upload to Drive.
 
     Returns the reel file path on success, or None on failure.
@@ -368,11 +369,15 @@ def assemble_reel(account: str, content: dict, assets: dict,
 
     # Resolve full asset paths
     hook_path = ASSETS_DIR / persona / "hook" / assets["hook"]
-    reaction_path = ASSETS_DIR / persona / "reaction" / assets["reaction"]
     screen_path = ASSETS_DIR / "screen-recordings" / app / assets["screen_rec"]
 
-    # Check that assets exist (they may be placeholder strings if no clips found)
-    for label, path in [("Hook", hook_path), ("Screen", screen_path), ("Reaction", reaction_path)]:
+    # Check required assets exist
+    required = [("Hook", hook_path), ("Screen", screen_path)]
+    if not no_reaction:
+        reaction_path = ASSETS_DIR / persona / "reaction" / assets["reaction"]
+        required.append(("Reaction", reaction_path))
+
+    for label, path in required:
         if not path.exists():
             print(f"  SKIP ASSEMBLY: {label} clip not found: {path}")
             return None
@@ -387,11 +392,12 @@ def assemble_reel(account: str, content: dict, assets: dict,
         sys.executable, str(SCRIPTS_DIR / "assemble_video.py"),
         "--hook-clip", str(hook_path),
         "--screen-recording", str(screen_path),
-        "--reaction-clip", str(reaction_path),
         "--hook-text", content["pov_text"],
-        "--reaction-text", content["reaction_text"],
         "--output", str(output_path),
     ]
+    if not no_reaction:
+        cmd += ["--reaction-clip", str(reaction_path),
+                "--reaction-text", content["reaction_text"]]
     if no_upload:
         cmd.append("--no-upload")
     if dry_run:
@@ -511,7 +517,7 @@ Suggested type: {content.get('suggested_screen_recording', 'any')}
 
 def run_account(account: str, category_override: str | None = None,
                 dry_run: bool = False, idea_only: bool = False,
-                no_upload: bool = False):
+                no_upload: bool = False, no_reaction: bool = False):
     """Generate content for one account."""
     cfg = ACCOUNTS[account]
     print(f"\n{'='*60}")
@@ -592,7 +598,8 @@ def run_account(account: str, category_override: str | None = None,
 
     # 8. Assemble reel
     reel_path = assemble_reel(account, content, assets,
-                              dry_run=dry_run, no_upload=no_upload)
+                              dry_run=dry_run, no_upload=no_upload,
+                              no_reaction=no_reaction)
 
     # 9. Deliver
     subject, body = format_email(account, category, content, assets,
@@ -620,13 +627,15 @@ def main():
                         help="Generate text only, skip asset selection and email")
     parser.add_argument("--no-upload", action="store_true",
                         help="Assemble reel but skip Google Drive upload")
+    parser.add_argument("--no-reaction", action="store_true",
+                        help="Skip reaction clip in video assembly (hook + screen only)")
     args = parser.parse_args()
 
     accounts = [args.account] if args.account else list(ACCOUNTS.keys())
 
     for account in accounts:
         run_account(account, args.category, args.dry_run, args.idea_only,
-                    args.no_upload)
+                    args.no_upload, args.no_reaction)
 
     print(f"\nAll done. {len(accounts)} account(s) processed.")
 

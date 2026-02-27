@@ -273,6 +273,7 @@ export interface PipelineRunRequest {
   account: string;
   dry_run?: boolean;
   no_upload?: boolean;
+  no_reaction?: boolean;
   idea_only?: boolean;
 }
 
