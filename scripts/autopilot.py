@@ -312,9 +312,11 @@ def send_email(subject: str, body: str):
         print("  SKIP EMAIL: Set SMTP_USER, SMTP_PASS, DELIVERY_EMAIL env vars")
         return False
 
+    recipients = [r.strip() for r in RECIPIENT.split(",") if r.strip()]
+
     msg = MIMEMultipart()
     msg["From"] = SMTP_USER
-    msg["To"] = RECIPIENT
+    msg["To"] = ", ".join(recipients)
     msg["Subject"] = subject
     msg.attach(MIMEText(body, "plain"))
 
@@ -322,8 +324,8 @@ def send_email(subject: str, body: str):
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
             server.starttls()
             server.login(SMTP_USER, SMTP_PASS)
-            server.sendmail(SMTP_USER, RECIPIENT, msg.as_string())
-        print(f"  Email sent to {RECIPIENT}")
+            server.sendmail(SMTP_USER, recipients, msg.as_string())
+        print(f"  Email sent to {', '.join(recipients)}")
         return True
     except Exception as e:
         print(f"  EMAIL ERROR: {e}")
