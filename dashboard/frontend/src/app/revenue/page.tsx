@@ -160,8 +160,8 @@ export default function RevenuePage() {
                   </thead>
                   <tbody>
                     {METRIC_CONFIG.map(({ key, label: metricLabel, isMoney }) => {
-                      const val = (metrics as Record<string, number>)[key] || 0;
-                      const prevVal = prevMetrics ? (prevMetrics as Record<string, number>)[key] : undefined;
+                      const val = (metrics as unknown as Record<string, number>)[key] || 0;
+                      const prevVal = prevMetrics ? (prevMetrics as unknown as Record<string, number>)[key] : undefined;
                       return (
                         <tr key={key} className="border-b last:border-0">
                           <td className="py-2">{metricLabel}</td>
