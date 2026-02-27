@@ -429,6 +429,9 @@ def send_email(hook, payoff, caption, hashtags, category, style, screen_rec, run
         print("  Skipping email (SMTP_USER/SMTP_PASS/DELIVERY_EMAIL not set)")
         return
 
+    # Support comma-separated recipients
+    recipients = [r.strip() for r in recipient.split(",") if r.strip()]
+
     body = f"""AutoJournal Reel — {run_date}
 
 HOOK (Scene 1):
@@ -448,7 +451,7 @@ Category: {category} | Style: {style} | Screen: {screen_rec}
 
     msg = MIMEMultipart()
     msg["From"] = smtp_user
-    msg["To"] = recipient
+    msg["To"] = ", ".join(recipients)
     msg["Subject"] = f"AutoJournal Reel: {hook[:50]}"
     msg.attach(MIMEText(body, "plain"))
 
@@ -456,8 +459,8 @@ Category: {category} | Style: {style} | Screen: {screen_rec}
         with smtplib.SMTP(smtp_host, smtp_port) as server:
             server.starttls()
             server.login(smtp_user, smtp_pass)
-            server.sendmail(smtp_user, recipient, msg.as_string())
-        print(f"  Email sent to {recipient}")
+            server.sendmail(smtp_user, recipients, msg.as_string())
+        print(f"  Email sent to {', '.join(recipients)}")
     except Exception as e:
         print(f"  Email failed: {e}")
 
