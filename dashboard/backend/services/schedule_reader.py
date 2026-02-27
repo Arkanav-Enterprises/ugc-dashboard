@@ -11,6 +11,10 @@ from config import SCHEDULE_CONFIG, JSONL_PATH, LOGS_DIR, ACCOUNTS
 # IST is UTC+5:30
 IST_OFFSET = timedelta(hours=5, minutes=30)
 
+VALID_FREQUENCIES = {"daily", "weekdays", "every_2_days", "custom"}
+ALL_DAYS = [0, 1, 2, 3, 4, 5, 6]
+HH_MM_RE = re.compile(r"^\d{2}:\d{2}$")
+
 
 def _utc_to_ist(time_str: str) -> str:
     """Convert 'HH:MM' UTC to IST display string like '12:00 PM'."""
@@ -20,25 +24,45 @@ def _utc_to_ist(time_str: str) -> str:
     return ist_dt.strftime("%-I:%M %p") + " IST"
 
 
+def _validate_time(t: str) -> bool:
+    """Check HH:MM format with valid ranges."""
+    if not HH_MM_RE.match(t):
+        return False
+    h, m = map(int, t.split(":"))
+    return 0 <= h <= 23 and 0 <= m <= 59
+
+
 def _read_config() -> dict:
-    """Read schedule config, return defaults if file missing."""
+    """Read schedule config, return defaults if file missing. Backfill frequency fields."""
     if SCHEDULE_CONFIG.exists():
-        return json.loads(SCHEDULE_CONFIG.read_text())
-    return {
-        "video_pipeline": {
-            "enabled": True,
-            "time_utc": "06:30",
-            "accounts": {acct: {"enabled": True} for acct in ACCOUNTS},
-        },
-        "text_pipeline": {
-            "enabled": True,
-            "accounts": {
-                "sophie.unplugs": {"enabled": True, "time_utc": "01:30"},
-                "emillywilks": {"enabled": True, "time_utc": "01:45"},
-                "sanyahealing": {"enabled": True, "time_utc": "02:00"},
+        config = json.loads(SCHEDULE_CONFIG.read_text())
+    else:
+        config = {
+            "video_pipeline": {
+                "enabled": True,
+                "time_utc": "06:30",
+                "accounts": {acct: {"enabled": True} for acct in ACCOUNTS},
             },
-        },
-    }
+            "text_pipeline": {
+                "enabled": True,
+                "accounts": {
+                    "sophie.unplugs": {"enabled": True, "time_utc": "01:30"},
+                    "emillywilks": {"enabled": True, "time_utc": "01:45"},
+                    "sanyahealing": {"enabled": True, "time_utc": "02:00"},
+                },
+            },
+        }
+
+    # Backfill frequency defaults for backward compat
+    vp = config.setdefault("video_pipeline", {})
+    vp.setdefault("frequency", "daily")
+    vp.setdefault("days_of_week", ALL_DAYS[:])
+
+    tp = config.setdefault("text_pipeline", {})
+    tp.setdefault("frequency", "daily")
+    tp.setdefault("days_of_week", ALL_DAYS[:])
+
+    return config
 
 
 def _write_config(config: dict) -> None:
@@ -149,6 +173,10 @@ def get_schedule() -> dict:
         "text_pipeline_enabled": tp.get("enabled", True),
         "video_time_utc": vp.get("time_utc", "06:30"),
         "video_time_ist": _utc_to_ist(vp.get("time_utc", "06:30")),
+        "video_frequency": vp.get("frequency", "daily"),
+        "video_days_of_week": vp.get("days_of_week", ALL_DAYS[:]),
+        "text_frequency": tp.get("frequency", "daily"),
+        "text_days_of_week": tp.get("days_of_week", ALL_DAYS[:]),
         "slots": slots,
         "cron_history": cron_history,
     }
@@ -164,6 +192,35 @@ def update_schedule(data: dict) -> dict:
     if data.get("text_pipeline_enabled") is not None:
         config["text_pipeline"]["enabled"] = data["text_pipeline_enabled"]
 
+    # Video time
+    if data.get("video_time_utc") is not None:
+        t = data["video_time_utc"]
+        if _validate_time(t):
+            config["video_pipeline"]["time_utc"] = t
+
+    # Video frequency
+    if data.get("video_frequency") is not None:
+        f = data["video_frequency"]
+        if f in VALID_FREQUENCIES:
+            config["video_pipeline"]["frequency"] = f
+
+    # Video days
+    if data.get("video_days_of_week") is not None:
+        days = [d for d in data["video_days_of_week"] if d in ALL_DAYS]
+        config["video_pipeline"]["days_of_week"] = days
+
+    # Text frequency
+    if data.get("text_frequency") is not None:
+        f = data["text_frequency"]
+        if f in VALID_FREQUENCIES:
+            config["text_pipeline"]["frequency"] = f
+
+    # Text days
+    if data.get("text_days_of_week") is not None:
+        days = [d for d in data["text_days_of_week"] if d in ALL_DAYS]
+        config["text_pipeline"]["days_of_week"] = days
+
+    # Per-account toggles
     if data.get("video_personas"):
         for account, updates in data["video_personas"].items():
             if account in config["video_pipeline"].get("accounts", {}):
@@ -172,6 +229,10 @@ def update_schedule(data: dict) -> dict:
     if data.get("text_accounts"):
         for account, updates in data["text_accounts"].items():
             if account in config["text_pipeline"]["accounts"]:
+                # Validate time_utc if provided
+                if "time_utc" in updates:
+                    if not _validate_time(updates["time_utc"]):
+                        del updates["time_utc"]
                 config["text_pipeline"]["accounts"][account].update(updates)
 
     _write_config(config)

@@ -135,6 +135,10 @@ class ScheduleState(BaseModel):
     text_pipeline_enabled: bool
     video_time_utc: str
     video_time_ist: str
+    video_frequency: str
+    video_days_of_week: list[int]
+    text_frequency: str
+    text_days_of_week: list[int]
     slots: list[ScheduleSlot]
     cron_history: list[CronHistoryEntry]
 
@@ -144,6 +148,11 @@ class ScheduleUpdateRequest(BaseModel):
     text_pipeline_enabled: Optional[bool] = None
     video_personas: Optional[dict[str, dict]] = None
     text_accounts: Optional[dict[str, dict]] = None
+    video_time_utc: Optional[str] = None
+    video_frequency: Optional[str] = None
+    video_days_of_week: Optional[list[int]] = None
+    text_frequency: Optional[str] = None
+    text_days_of_week: Optional[list[int]] = None
 
 
 # ─── YouTube Research models ────────────────────────

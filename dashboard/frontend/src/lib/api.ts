@@ -326,6 +326,10 @@ export interface ScheduleState {
   text_pipeline_enabled: boolean;
   video_time_utc: string;
   video_time_ist: string;
+  video_frequency: string;
+  video_days_of_week: number[];
+  text_frequency: string;
+  text_days_of_week: number[];
   slots: ScheduleSlot[];
   cron_history: CronHistoryEntry[];
 }
@@ -334,7 +338,12 @@ export interface ScheduleUpdateRequest {
   video_pipeline_enabled?: boolean;
   text_pipeline_enabled?: boolean;
   video_personas?: Record<string, { enabled?: boolean; video_type?: string }>;
-  text_accounts?: Record<string, { enabled?: boolean }>;
+  text_accounts?: Record<string, { enabled?: boolean; time_utc?: string }>;
+  video_time_utc?: string;
+  video_frequency?: string;
+  video_days_of_week?: number[];
+  text_frequency?: string;
+  text_days_of_week?: number[];
 }
 
 // ─── YouTube Research ────────────────────────────────

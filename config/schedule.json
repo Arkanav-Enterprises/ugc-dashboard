@@ -2,6 +2,8 @@
   "video_pipeline": {
     "enabled": true,
     "time_utc": "06:30",
+    "frequency": "daily",
+    "days_of_week": [0, 1, 2, 3, 4, 5, 6],
     "accounts": {
       "aliyah.manifests": { "enabled": true },
       "aliyah.journals": { "enabled": true },
@@ -14,6 +16,8 @@
   },
   "text_pipeline": {
     "enabled": true,
+    "frequency": "daily",
+    "days_of_week": [0, 1, 2, 3, 4, 5, 6],
     "accounts": {
       "sophie.unplugs": { "enabled": true, "time_utc": "01:30" },
       "emillywilks": { "enabled": true, "time_utc": "01:45" },
