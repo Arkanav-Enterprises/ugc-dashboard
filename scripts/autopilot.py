@@ -193,19 +193,36 @@ def list_screen_recordings(app: str) -> list[str]:
     return sorted([f.name for f in folder.iterdir() if f.suffix in (".mp4", ".mov")])
 
 
-def pick_asset(persona: str, clip_type: str, usage: dict, account: str) -> str:
-    """Pick an asset that wasn't used recently for this account."""
-    available = list_assets(persona, clip_type)
-    if not available:
-        return f"[NO {clip_type.upper()} CLIPS in assets/{persona}/{clip_type}/]"
+def pick_clip_pair(persona: str, usage: dict, account: str) -> tuple[str, str]:
+    """Pick a matched hook+reaction pair (same filename = same session).
 
-    # Recently used by this account
-    recent = {e[clip_type if clip_type != "screen_rec" else "screen_rec"]
-              for e in usage["entries"][-7:] if e["account"] == account}
+    Returns (hook_filename, reaction_filename). Falls back to independent
+    picks only if no matched pairs exist.
+    """
+    hooks = list_assets(persona, "hook")
+    reactions = list_assets(persona, "reaction")
 
-    # Prefer unused clips
-    unused = [a for a in available if a not in recent]
-    return random.choice(unused) if unused else random.choice(available)
+    if not hooks:
+        return (f"[NO HOOK CLIPS in assets/{persona}/hook/]",
+                f"[NO REACTION CLIPS in assets/{persona}/reaction/]")
+    if not reactions:
+        return (random.choice(hooks),
+                f"[NO REACTION CLIPS in assets/{persona}/reaction/]")
+
+    # Find filenames that exist in both hook/ and reaction/
+    matched = sorted(set(hooks) & set(reactions))
+
+    if not matched:
+        # No matching filenames — fall back to independent picks (shouldn't happen)
+        return (random.choice(hooks), random.choice(reactions))
+
+    # Recently used pairs by this account
+    recent = {e["hook"] for e in usage["entries"][-7:] if e["account"] == account}
+
+    # Prefer unused pairs
+    unused = [m for m in matched if m not in recent]
+    pick = random.choice(unused) if unused else random.choice(matched)
+    return (pick, pick)
 
 
 def pick_screen_recording(app: str, usage: dict, account: str) -> str:
@@ -354,7 +371,7 @@ def assemble_reel(account: str, content: dict, assets: dict,
     reaction_path = ASSETS_DIR / persona / "reaction" / assets["reaction"]
     screen_path = ASSETS_DIR / "screen-recordings" / app / assets["screen_rec"]
 
-    # Check that assets exist (they may be placeholder strings from pick_asset)
+    # Check that assets exist (they may be placeholder strings if no clips found)
     for label, path in [("Hook", hook_path), ("Screen", screen_path), ("Reaction", reaction_path)]:
         if not path.exists():
             print(f"  SKIP ASSEMBLY: {label} clip not found: {path}")
@@ -549,12 +566,13 @@ def run_account(account: str, category_override: str | None = None,
         print(f"  {content['hashtags']}")
         return
 
-    # 5. Select assets (cycling)
+    # 5. Select assets (cycling) — hook+reaction as matched pair
     print("  Selecting assets...")
     usage = load_asset_usage()
+    hook_clip, reaction_clip = pick_clip_pair(cfg["persona"], usage, account)
     assets = {
-        "hook": pick_asset(cfg["persona"], "hook", usage, account),
-        "reaction": pick_asset(cfg["persona"], "reaction", usage, account),
+        "hook": hook_clip,
+        "reaction": reaction_clip,
         "screen_rec": pick_screen_recording(cfg["app"], usage, account),
     }
     print(f"  Hook: {assets['hook']}, Reaction: {assets['reaction']}, Screen: {assets['screen_rec']}")
