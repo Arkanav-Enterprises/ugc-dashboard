@@ -19,6 +19,7 @@ import json
 import random
 import smtplib
 import argparse
+import subprocess
 from pathlib import Path
 from datetime import datetime, date
 from email.mime.multipart import MIMEMultipart
@@ -34,6 +35,8 @@ MEMORY_DIR = PROJECT_ROOT / "memory"
 ASSETS_DIR = PROJECT_ROOT / "assets"
 OUTPUT_DIR = PROJECT_ROOT / "output"
 LOGS_DIR = PROJECT_ROOT / "logs"
+SCRIPTS_DIR = PROJECT_ROOT / "scripts"
+VIDEO_OUTPUT_DIR = PROJECT_ROOT / "video_output"
 
 # Account → persona → app mapping (single source of truth)
 # Priority order: Aliyah > Riley > Sanya > Sophie (based on per-reel performance)
@@ -333,10 +336,106 @@ def send_email(subject: str, body: str):
 
 
 # ---------------------------------------------------------------------------
+# Video assembly — stitch clips + upload to Google Drive
+# ---------------------------------------------------------------------------
+
+def assemble_reel(account: str, content: dict, assets: dict,
+                  dry_run: bool = False, no_upload: bool = False) -> str | None:
+    """Assemble the final reel via assemble_video.py and optionally upload to Drive.
+
+    Returns the reel file path on success, or None on failure.
+    """
+    cfg = ACCOUNTS[account]
+    persona = cfg["persona"]
+    app = cfg["app"]
+
+    # Resolve full asset paths
+    hook_path = ASSETS_DIR / persona / "hook" / assets["hook"]
+    reaction_path = ASSETS_DIR / persona / "reaction" / assets["reaction"]
+    screen_path = ASSETS_DIR / "screen-recordings" / app / assets["screen_rec"]
+
+    # Check that assets exist (they may be placeholder strings from pick_asset)
+    for label, path in [("Hook", hook_path), ("Screen", screen_path), ("Reaction", reaction_path)]:
+        if not path.exists():
+            print(f"  SKIP ASSEMBLY: {label} clip not found: {path}")
+            return None
+
+    # Output filename
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    VIDEO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = VIDEO_OUTPUT_DIR / f"reel_{ts}_{account}.mp4"
+
+    # Build command
+    cmd = [
+        sys.executable, str(SCRIPTS_DIR / "assemble_video.py"),
+        "--hook-clip", str(hook_path),
+        "--screen-recording", str(screen_path),
+        "--reaction-clip", str(reaction_path),
+        "--hook-text", content["pov_text"],
+        "--reaction-text", content["reaction_text"],
+        "--output", str(output_path),
+    ]
+    if no_upload:
+        cmd.append("--no-upload")
+    if dry_run:
+        cmd.append("--dry-run")
+
+    print(f"  Assembling reel...")
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 minute timeout for ffmpeg
+        )
+        # Print assembly output
+        for line in result.stdout.splitlines():
+            print(f"    {line}")
+        if result.stderr:
+            for line in result.stderr.splitlines():
+                print(f"    ERR: {line}")
+
+        if result.returncode != 0:
+            print(f"  ASSEMBLY FAILED (exit code {result.returncode})")
+            return None
+
+        # Parse output for reel path
+        for line in result.stdout.splitlines():
+            if "Reel assembled:" in line:
+                # Line format: "✅ Reel assembled: /path/to/reel.mp4 (X.X MB)"
+                path_part = line.split("Reel assembled:")[1].strip()
+                reel_path = path_part.split("(")[0].strip()
+                print(f"  Reel: {reel_path}")
+                return reel_path
+
+        # If dry run, no "Reel assembled" line — return the intended output path
+        if dry_run:
+            print(f"  [DRY RUN] Would assemble: {output_path}")
+            return str(output_path)
+
+        # Fallback: check if output file exists
+        if output_path.exists():
+            print(f"  Reel: {output_path}")
+            return str(output_path)
+
+        print("  ASSEMBLY WARNING: No reel path found in output")
+        return None
+
+    except subprocess.TimeoutExpired:
+        print("  ASSEMBLY FAILED: Timed out after 5 minutes")
+        return None
+    except Exception as e:
+        print(f"  ASSEMBLY ERROR: {e}")
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Format email body — what you see on your phone
 # ---------------------------------------------------------------------------
 
-def format_email(account: str, category: str, content: dict, assets: dict) -> tuple[str, str]:
+def format_email(account: str, category: str, content: dict, assets: dict,
+                 reel_path: str | None = None) -> tuple[str, str]:
     """Return (subject, body) for the delivery email."""
     cfg = ACCOUNTS[account]
     cat_name = CATEGORIES[category]["name"]
@@ -345,6 +444,15 @@ def format_email(account: str, category: str, content: dict, assets: dict) -> tu
     subject = f"[{cfg['persona'].title()}] {cfg['handle']} Cat-{category}: \"{pov_preview}\""
 
     app_label = "MANIFEST LOCK" if cfg["app"] == "manifest-lock" else "JOURNAL LOCK"
+
+    reel_section = ""
+    if reel_path:
+        reel_section = f"""
+━━━ REEL ━━━
+
+Reel: {reel_path}
+Google Drive: manifest-social-videos/
+"""
 
     body = f"""{app_label} — Daily Content
 Persona: {cfg['persona'].title()} ({cfg['handle']})
@@ -369,7 +477,7 @@ Hook clip: {cfg['persona']}/hook/{assets['hook']}
 Reaction clip: {cfg['persona']}/reaction/{assets['reaction']}
 Screen recording: screen-recordings/{cfg['app']}/{assets['screen_rec']}
 Suggested type: {content.get('suggested_screen_recording', 'any')}
-
+{reel_section}
 ━━━ POSTING NOTES ━━━
 
 - Add trending sound before publishing
@@ -385,7 +493,8 @@ Suggested type: {content.get('suggested_screen_recording', 'any')}
 # ---------------------------------------------------------------------------
 
 def run_account(account: str, category_override: str | None = None,
-                dry_run: bool = False, idea_only: bool = False):
+                dry_run: bool = False, idea_only: bool = False,
+                no_upload: bool = False):
     """Generate content for one account."""
     cfg = ACCOUNTS[account]
     print(f"\n{'='*60}")
@@ -463,8 +572,13 @@ def run_account(account: str, category_override: str | None = None,
     # 7. Save output for dedup
     save_output(account, {"category": category, "content": content, "assets": assets})
 
-    # 8. Deliver
-    subject, body = format_email(account, category, content, assets)
+    # 8. Assemble reel
+    reel_path = assemble_reel(account, content, assets,
+                              dry_run=dry_run, no_upload=no_upload)
+
+    # 9. Deliver
+    subject, body = format_email(account, category, content, assets,
+                                 reel_path=reel_path)
 
     if dry_run:
         print(f"\n  --- DRY RUN (no email) ---")
@@ -486,12 +600,15 @@ def main():
                         help="Generate content but don't send email")
     parser.add_argument("--idea-only", action="store_true",
                         help="Generate text only, skip asset selection and email")
+    parser.add_argument("--no-upload", action="store_true",
+                        help="Assemble reel but skip Google Drive upload")
     args = parser.parse_args()
 
     accounts = [args.account] if args.account else list(ACCOUNTS.keys())
 
     for account in accounts:
-        run_account(account, args.category, args.dry_run, args.idea_only)
+        run_account(account, args.category, args.dry_run, args.idea_only,
+                    args.no_upload)
 
     print(f"\nAll done. {len(accounts)} account(s) processed.")
 
