@@ -24,7 +24,7 @@ const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const FREQUENCY_OPTIONS: { value: string; label: string }[] = [
   { value: "daily", label: "Daily" },
-  { value: "weekdays", label: "Mon–Fri" },
+  { value: "weekdays", label: "Mon\u2013Fri" },
   { value: "every_2_days", label: "Every 2 days" },
   { value: "custom", label: "Custom" },
 ];
@@ -77,77 +77,40 @@ export default function SchedulePage() {
     debounceTimers.current[key] = setTimeout(() => doUpdate(data), ms);
   }
 
-  async function togglePipeline(pipeline: "video" | "text") {
+  function handleFrequencyChange(value: string) {
     if (!state) return;
-    const data =
-      pipeline === "video"
-        ? { video_pipeline_enabled: !state.video_pipeline_enabled }
-        : { text_pipeline_enabled: !state.text_pipeline_enabled };
-    await doUpdate(data);
+    setState({ ...state, frequency: value });
+    doUpdate({ frequency: value });
   }
 
-  async function toggleSlot(slot: ScheduleSlot) {
-    const data =
-      slot.type === "video"
-        ? {
-            video_personas: {
-              [slot.account!]: { enabled: !slot.enabled },
-            },
-          }
-        : {
-            text_accounts: {
-              [slot.account!]: { enabled: !slot.enabled },
-            },
-          };
-    await doUpdate(data);
-  }
-
-  function handleVideoTimeChange(value: string) {
+  function handleDayToggle(day: number) {
     if (!state) return;
-    setState({ ...state, video_time_utc: value, video_time_ist: utcToIst(value) });
-    debouncedUpdate("video_time", { video_time_utc: value });
-  }
-
-  function handleFrequencyChange(pipeline: "video" | "text", value: string) {
-    if (!state) return;
-    if (pipeline === "video") {
-      setState({ ...state, video_frequency: value });
-      doUpdate({ video_frequency: value });
-    } else {
-      setState({ ...state, text_frequency: value });
-      doUpdate({ text_frequency: value });
-    }
-  }
-
-  function handleDayToggle(pipeline: "video" | "text", day: number) {
-    if (!state) return;
-    const key = pipeline === "video" ? "video_days_of_week" : "text_days_of_week";
-    const current = state[key];
+    const current = state.days_of_week;
     const next = current.includes(day)
       ? current.filter((d) => d !== day)
       : [...current, day].sort();
-    if (pipeline === "video") {
-      setState({ ...state, video_days_of_week: next });
-      doUpdate({ video_days_of_week: next });
-    } else {
-      setState({ ...state, text_days_of_week: next });
-      doUpdate({ text_days_of_week: next });
-    }
+    setState({ ...state, days_of_week: next });
+    doUpdate({ days_of_week: next });
   }
 
-  function handleTextAccountTimeChange(account: string, value: string) {
+  function handleAccountTimeChange(account: string, value: string) {
     if (!state) return;
-    // Optimistic update on slots
     setState({
       ...state,
       slots: state.slots.map((s) =>
-        s.account === account && s.type === "text"
+        s.account === account
           ? { ...s, time_utc: value, time_ist: utcToIst(value) }
           : s
       ),
     });
-    debouncedUpdate(`text_time_${account}`, {
-      text_accounts: { [account]: { time_utc: value } },
+    debouncedUpdate(`time_${account}`, {
+      accounts: { [account]: { time_utc: value } },
+    });
+  }
+
+  async function toggleAccount(slot: ScheduleSlot) {
+    await doUpdate({
+      accounts: { [slot.account]: { enabled: !slot.enabled } },
     });
   }
 
@@ -171,168 +134,70 @@ export default function SchedulePage() {
     );
   }
 
-  const videoSlots = state.slots.filter((s) => s.type === "video");
-  const textSlots = state.slots.filter((s) => s.type === "text");
+  const enabledCount = state.slots.filter((s) => s.enabled).length;
 
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Schedule</h2>
 
-      {/* Pipeline control cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Video Pipeline Card */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">
-              Video Pipeline
-            </CardTitle>
-            <Badge
-              variant={state.video_pipeline_enabled ? "default" : "secondary"}
-              className="cursor-pointer"
-              onClick={() => togglePipeline("video")}
+      {/* Content Pipeline card */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-sm font-medium">Content Pipeline</CardTitle>
+          <span className="text-xs text-muted-foreground">
+            {enabledCount} / {state.slots.length} accounts active
+          </span>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Frequency</span>
+            <select
+              value={state.frequency}
+              onChange={(e) => handleFrequencyChange(e.target.value)}
+              disabled={updating}
+              className="rounded border border-input bg-background px-2 py-1 text-sm"
             >
-              {state.video_pipeline_enabled ? "Enabled" : "Disabled"}
-            </Badge>
-          </CardHeader>
-          <CardContent className="space-y-3">
+              {FREQUENCY_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {state.frequency === "custom" && (
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Time (UTC)</span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="time"
-                  value={state.video_time_utc}
-                  onChange={(e) => handleVideoTimeChange(e.target.value)}
-                  disabled={updating}
-                  className="rounded border border-input bg-background px-2 py-1 text-sm"
-                />
-                <span className="text-xs text-muted-foreground">
-                  {state.video_time_ist}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Frequency</span>
-              <select
-                value={state.video_frequency}
-                onChange={(e) =>
-                  handleFrequencyChange("video", e.target.value)
-                }
-                disabled={updating}
-                className="rounded border border-input bg-background px-2 py-1 text-sm"
-              >
-                {FREQUENCY_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
+              <span className="text-muted-foreground">Days</span>
+              <div className="flex gap-1">
+                {DAY_LABELS.map((label, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleDayToggle(i)}
+                    disabled={updating}
+                    className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
+                      state.days_of_week.includes(i)
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {label}
+                  </button>
                 ))}
-              </select>
-            </div>
-            {state.video_frequency === "custom" && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Days</span>
-                <div className="flex gap-1">
-                  {DAY_LABELS.map((label, i) => (
-                    <button
-                      key={i}
-                      onClick={() => handleDayToggle("video", i)}
-                      disabled={updating}
-                      className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
-                        state.video_days_of_week.includes(i)
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
               </div>
-            )}
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Active accounts</span>
-              <span>
-                {videoSlots.filter((s) => s.enabled).length} /{" "}
-                {videoSlots.length}
-              </span>
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </CardContent>
+      </Card>
 
-        {/* Text Pipeline Card */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">
-              Text Pipeline
-            </CardTitle>
-            <Badge
-              variant={state.text_pipeline_enabled ? "default" : "secondary"}
-              className="cursor-pointer"
-              onClick={() => togglePipeline("text")}
-            >
-              {state.text_pipeline_enabled ? "Enabled" : "Disabled"}
-            </Badge>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Frequency</span>
-              <select
-                value={state.text_frequency}
-                onChange={(e) =>
-                  handleFrequencyChange("text", e.target.value)
-                }
-                disabled={updating}
-                className="rounded border border-input bg-background px-2 py-1 text-sm"
-              >
-                {FREQUENCY_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {state.text_frequency === "custom" && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Days</span>
-                <div className="flex gap-1">
-                  {DAY_LABELS.map((label, i) => (
-                    <button
-                      key={i}
-                      onClick={() => handleDayToggle("text", i)}
-                      disabled={updating}
-                      className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
-                        state.text_days_of_week.includes(i)
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Active accounts</span>
-              <span>
-                {textSlots.filter((s) => s.enabled).length} /{" "}
-                {textSlots.length}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Schedule table */}
+      {/* Accounts table */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium">Schedule Slots</CardTitle>
+          <CardTitle className="text-sm font-medium">Accounts</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
-                  <th className="pb-2 pr-4 font-medium">Type</th>
                   <th className="pb-2 pr-4 font-medium">Account</th>
                   <th className="pb-2 pr-4 font-medium">Time (UTC)</th>
                   <th className="pb-2 pr-4 font-medium">Time (IST)</th>
@@ -342,49 +207,35 @@ export default function SchedulePage() {
                 </tr>
               </thead>
               <tbody>
-                {state.slots.map((slot, i) => {
-                  const name = slot.account || slot.persona || "\u2014";
-                  const persona =
-                    slot.persona ||
-                    (slot.account ? slot.account.split(".")[0] : null);
-                  const color =
-                    persona && PERSONA_COLORS[persona]
-                      ? PERSONA_COLORS[persona]
-                      : undefined;
+                {state.slots.map((slot) => {
+                  const persona = slot.account.includes(".")
+                    ? slot.account.split(".")[0]
+                    : slot.account === "sanyahealing"
+                      ? "sanya"
+                      : slot.account === "emillywilks"
+                        ? "emilly"
+                        : slot.account;
+                  const color = PERSONA_COLORS[persona];
                   return (
-                    <tr key={i} className="border-b last:border-0">
-                      <td className="py-3 pr-4">
-                        <Badge variant="outline">
-                          {slot.type === "video" ? "Video" : "Text"}
-                        </Badge>
-                      </td>
+                    <tr key={slot.account} className="border-b last:border-0">
                       <td className="py-3 pr-4">
                         <span
                           className="font-medium"
                           style={color ? { color } : undefined}
                         >
-                          {name}
+                          {slot.account}
                         </span>
                       </td>
                       <td className="py-3 pr-4">
-                        {slot.type === "text" ? (
-                          <input
-                            type="time"
-                            value={slot.time_utc}
-                            onChange={(e) =>
-                              handleTextAccountTimeChange(
-                                slot.account!,
-                                e.target.value
-                              )
-                            }
-                            disabled={updating}
-                            className="rounded border border-input bg-background px-2 py-0.5 text-sm"
-                          />
-                        ) : (
-                          <span className="text-muted-foreground">
-                            {slot.time_utc}
-                          </span>
-                        )}
+                        <input
+                          type="time"
+                          value={slot.time_utc}
+                          onChange={(e) =>
+                            handleAccountTimeChange(slot.account, e.target.value)
+                          }
+                          disabled={updating}
+                          className="rounded border border-input bg-background px-2 py-0.5 text-sm"
+                        />
                       </td>
                       <td className="py-3 pr-4 text-muted-foreground">
                         {slot.time_ist}
@@ -394,7 +245,7 @@ export default function SchedulePage() {
                           variant={slot.enabled ? "default" : "outline"}
                           size="sm"
                           disabled={updating}
-                          onClick={() => toggleSlot(slot)}
+                          onClick={() => toggleAccount(slot)}
                         >
                           {slot.enabled ? "On" : "Off"}
                         </Button>

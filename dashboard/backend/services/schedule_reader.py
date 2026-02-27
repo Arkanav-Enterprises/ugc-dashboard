@@ -32,35 +32,71 @@ def _validate_time(t: str) -> bool:
     return 0 <= h <= 23 and 0 <= m <= 59
 
 
+def _migrate_old_format(config: dict) -> dict:
+    """Convert old video_pipeline/text_pipeline format to flat accounts dict."""
+    vp = config.get("video_pipeline", {})
+    tp = config.get("text_pipeline", {})
+
+    # Use video pipeline's frequency/days as the global defaults
+    frequency = vp.get("frequency", tp.get("frequency", "daily"))
+    days_of_week = vp.get("days_of_week", tp.get("days_of_week", ALL_DAYS[:]))
+
+    vp_time = vp.get("time_utc", "06:30")
+    vp_enabled = vp.get("enabled", True)
+    tp_enabled = tp.get("enabled", True)
+
+    accounts: dict[str, dict] = {}
+
+    # Merge video pipeline accounts
+    for acct, acfg in vp.get("accounts", {}).items():
+        accounts[acct] = {
+            "enabled": acfg.get("enabled", True) and vp_enabled,
+            "time_utc": vp_time,
+        }
+
+    # Merge text pipeline accounts (override time if they had per-account times)
+    for acct, acfg in tp.get("accounts", {}).items():
+        if acct in accounts:
+            # Account existed in video pipeline — keep video time unless text had its own
+            if "time_utc" in acfg:
+                accounts[acct]["time_utc"] = acfg["time_utc"]
+        else:
+            accounts[acct] = {
+                "enabled": acfg.get("enabled", True) and tp_enabled,
+                "time_utc": acfg.get("time_utc", "06:30"),
+            }
+
+    return {
+        "frequency": frequency,
+        "days_of_week": days_of_week,
+        "accounts": accounts,
+    }
+
+
 def _read_config() -> dict:
-    """Read schedule config, return defaults if file missing. Backfill frequency fields."""
+    """Read schedule config. Migrate from old format if detected."""
     if SCHEDULE_CONFIG.exists():
         config = json.loads(SCHEDULE_CONFIG.read_text())
     else:
-        config = {
-            "video_pipeline": {
-                "enabled": True,
-                "time_utc": "06:30",
-                "accounts": {acct: {"enabled": True} for acct in ACCOUNTS},
-            },
-            "text_pipeline": {
-                "enabled": True,
-                "accounts": {
-                    "sophie.unplugs": {"enabled": True, "time_utc": "01:30"},
-                    "emillywilks": {"enabled": True, "time_utc": "01:45"},
-                    "sanyahealing": {"enabled": True, "time_utc": "02:00"},
-                },
-            },
-        }
+        config = {}
 
-    # Backfill frequency defaults for backward compat
-    vp = config.setdefault("video_pipeline", {})
-    vp.setdefault("frequency", "daily")
-    vp.setdefault("days_of_week", ALL_DAYS[:])
+    # Detect old format by presence of video_pipeline or text_pipeline keys
+    if "video_pipeline" in config or "text_pipeline" in config:
+        config = _migrate_old_format(config)
+        _write_config(config)  # persist migration
 
-    tp = config.setdefault("text_pipeline", {})
-    tp.setdefault("frequency", "daily")
-    tp.setdefault("days_of_week", ALL_DAYS[:])
+    # Backfill defaults
+    config.setdefault("frequency", "daily")
+    config.setdefault("days_of_week", ALL_DAYS[:])
+    accts = config.setdefault("accounts", {})
+
+    # Ensure all known accounts exist
+    for acct in ACCOUNTS:
+        if acct not in accts:
+            accts[acct] = {"enabled": True, "time_utc": "06:30"}
+        else:
+            accts[acct].setdefault("enabled", True)
+            accts[acct].setdefault("time_utc", "06:30")
 
     return config
 
@@ -72,9 +108,9 @@ def _write_config(config: dict) -> None:
 
 
 def _get_last_runs() -> dict[str, tuple[str, str]]:
-    """Parse video_autopilot.jsonl to find the last run per persona.
+    """Parse video_autopilot.jsonl to find the last run per account.
 
-    Returns {persona: (timestamp, status)}.
+    Returns {account: (timestamp, status)}.
     """
     last: dict[str, tuple[str, str]] = {}
     if not JSONL_PATH.exists():
@@ -84,10 +120,15 @@ def _get_last_runs() -> dict[str, tuple[str, str]]:
             entry = json.loads(line)
         except json.JSONDecodeError:
             continue
-        persona = entry.get("persona", "")
+        # Try account field first, fall back to persona
+        account = entry.get("account", "")
+        if not account:
+            persona = entry.get("persona", "")
+            account = persona  # best effort
         ts = entry.get("timestamp", "")
         status = "ok" if entry.get("reel_path") else "text_only"
-        last[persona] = (ts, status)
+        if account:
+            last[account] = (ts, status)
     return last
 
 
@@ -98,7 +139,6 @@ def _get_cron_history(limit: int = 20) -> list[dict]:
     if not cron_log.exists():
         return entries
     lines = cron_log.read_text().strip().splitlines()
-    # Pattern: === Video autopilot started/finished/FAILED at <date> ===
     pattern = re.compile(
         r"=== Video autopilot (started|finished OK|FAILED.*?) at (.+?) ==="
     )
@@ -132,51 +172,24 @@ def get_schedule() -> dict:
     last_runs = _get_last_runs()
     cron_history = _get_cron_history()
 
-    vp = config["video_pipeline"]
-    tp = config["text_pipeline"]
-
     slots = []
-
-    # Video account slots
-    for account, acfg in vp.get("accounts", {}).items():
-        # Derive persona from account name for last-run lookup
+    for account, acfg in config.get("accounts", {}).items():
+        time_utc = acfg.get("time_utc", "06:30")
+        # Look up last run by account name, then by persona prefix
         persona = account.split(".")[0] if "." in account else account
-        lr = last_runs.get(persona)
+        lr = last_runs.get(account) or last_runs.get(persona)
         slots.append({
-            "type": "video",
-            "persona": persona,
             "account": account,
-            "time_utc": vp.get("time_utc", "06:30"),
-            "time_ist": _utc_to_ist(vp.get("time_utc", "06:30")),
-            "video_type": "default",
-            "enabled": acfg.get("enabled", True) and vp.get("enabled", True),
+            "time_utc": time_utc,
+            "time_ist": _utc_to_ist(time_utc),
+            "enabled": acfg.get("enabled", True),
             "last_run": lr[0] if lr else None,
             "last_status": lr[1] if lr else None,
         })
 
-    # Text account slots
-    for account, acfg in tp.get("accounts", {}).items():
-        slots.append({
-            "type": "text",
-            "persona": None,
-            "account": account,
-            "time_utc": acfg.get("time_utc", "00:00"),
-            "time_ist": _utc_to_ist(acfg.get("time_utc", "00:00")),
-            "video_type": None,
-            "enabled": acfg.get("enabled", True) and tp.get("enabled", True),
-            "last_run": None,
-            "last_status": None,
-        })
-
     return {
-        "video_pipeline_enabled": vp.get("enabled", True),
-        "text_pipeline_enabled": tp.get("enabled", True),
-        "video_time_utc": vp.get("time_utc", "06:30"),
-        "video_time_ist": _utc_to_ist(vp.get("time_utc", "06:30")),
-        "video_frequency": vp.get("frequency", "daily"),
-        "video_days_of_week": vp.get("days_of_week", ALL_DAYS[:]),
-        "text_frequency": tp.get("frequency", "daily"),
-        "text_days_of_week": tp.get("days_of_week", ALL_DAYS[:]),
+        "frequency": config.get("frequency", "daily"),
+        "days_of_week": config.get("days_of_week", ALL_DAYS[:]),
         "slots": slots,
         "cron_history": cron_history,
     }
@@ -186,54 +199,25 @@ def update_schedule(data: dict) -> dict:
     """Update schedule config from API request and return new state."""
     config = _read_config()
 
-    if data.get("video_pipeline_enabled") is not None:
-        config["video_pipeline"]["enabled"] = data["video_pipeline_enabled"]
-
-    if data.get("text_pipeline_enabled") is not None:
-        config["text_pipeline"]["enabled"] = data["text_pipeline_enabled"]
-
-    # Video time
-    if data.get("video_time_utc") is not None:
-        t = data["video_time_utc"]
-        if _validate_time(t):
-            config["video_pipeline"]["time_utc"] = t
-
-    # Video frequency
-    if data.get("video_frequency") is not None:
-        f = data["video_frequency"]
+    # Global frequency
+    if data.get("frequency") is not None:
+        f = data["frequency"]
         if f in VALID_FREQUENCIES:
-            config["video_pipeline"]["frequency"] = f
+            config["frequency"] = f
 
-    # Video days
-    if data.get("video_days_of_week") is not None:
-        days = [d for d in data["video_days_of_week"] if d in ALL_DAYS]
-        config["video_pipeline"]["days_of_week"] = days
+    # Global days
+    if data.get("days_of_week") is not None:
+        days = [d for d in data["days_of_week"] if d in ALL_DAYS]
+        config["days_of_week"] = days
 
-    # Text frequency
-    if data.get("text_frequency") is not None:
-        f = data["text_frequency"]
-        if f in VALID_FREQUENCIES:
-            config["text_pipeline"]["frequency"] = f
-
-    # Text days
-    if data.get("text_days_of_week") is not None:
-        days = [d for d in data["text_days_of_week"] if d in ALL_DAYS]
-        config["text_pipeline"]["days_of_week"] = days
-
-    # Per-account toggles
-    if data.get("video_personas"):
-        for account, updates in data["video_personas"].items():
-            if account in config["video_pipeline"].get("accounts", {}):
-                config["video_pipeline"]["accounts"][account].update(updates)
-
-    if data.get("text_accounts"):
-        for account, updates in data["text_accounts"].items():
-            if account in config["text_pipeline"]["accounts"]:
-                # Validate time_utc if provided
+    # Per-account updates
+    if data.get("accounts"):
+        for account, updates in data["accounts"].items():
+            if account in config.get("accounts", {}):
                 if "time_utc" in updates:
                     if not _validate_time(updates["time_utc"]):
                         del updates["time_utc"]
-                config["text_pipeline"]["accounts"][account].update(updates)
+                config["accounts"][account].update(updates)
 
     _write_config(config)
     return get_schedule()

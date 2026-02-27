@@ -113,12 +113,9 @@ class ChatMessage(BaseModel):
 # ─── Schedule models ─────────────────────────────────
 
 class ScheduleSlot(BaseModel):
-    type: str  # "video" or "text"
-    persona: Optional[str] = None
-    account: Optional[str] = None
+    account: str
     time_utc: str
     time_ist: str
-    video_type: Optional[str] = None
     enabled: bool
     last_run: Optional[str] = None
     last_status: Optional[str] = None
@@ -131,28 +128,16 @@ class CronHistoryEntry(BaseModel):
 
 
 class ScheduleState(BaseModel):
-    video_pipeline_enabled: bool
-    text_pipeline_enabled: bool
-    video_time_utc: str
-    video_time_ist: str
-    video_frequency: str
-    video_days_of_week: list[int]
-    text_frequency: str
-    text_days_of_week: list[int]
+    frequency: str
+    days_of_week: list[int]
     slots: list[ScheduleSlot]
     cron_history: list[CronHistoryEntry]
 
 
 class ScheduleUpdateRequest(BaseModel):
-    video_pipeline_enabled: Optional[bool] = None
-    text_pipeline_enabled: Optional[bool] = None
-    video_personas: Optional[dict[str, dict]] = None
-    text_accounts: Optional[dict[str, dict]] = None
-    video_time_utc: Optional[str] = None
-    video_frequency: Optional[str] = None
-    video_days_of_week: Optional[list[int]] = None
-    text_frequency: Optional[str] = None
-    text_days_of_week: Optional[list[int]] = None
+    frequency: Optional[str] = None
+    days_of_week: Optional[list[int]] = None
+    accounts: Optional[dict[str, dict]] = None
 
 
 # ─── YouTube Research models ────────────────────────

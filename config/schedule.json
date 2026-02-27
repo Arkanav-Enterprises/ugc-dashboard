@@ -1,27 +1,13 @@
 {
-  "video_pipeline": {
-    "enabled": true,
-    "time_utc": "06:30",
-    "frequency": "daily",
-    "days_of_week": [0, 1, 2, 3, 4, 5, 6],
-    "accounts": {
-      "aliyah.manifests": { "enabled": true },
-      "aliyah.journals": { "enabled": true },
-      "riley.manifests": { "enabled": true },
-      "riley.journals": { "enabled": true },
-      "sanyahealing": { "enabled": true },
-      "sophie.unplugs": { "enabled": true },
-      "emillywilks": { "enabled": true }
-    }
-  },
-  "text_pipeline": {
-    "enabled": true,
-    "frequency": "daily",
-    "days_of_week": [0, 1, 2, 3, 4, 5, 6],
-    "accounts": {
-      "sophie.unplugs": { "enabled": true, "time_utc": "01:30" },
-      "emillywilks": { "enabled": true, "time_utc": "01:45" },
-      "sanyahealing": { "enabled": true, "time_utc": "02:00" }
-    }
+  "frequency": "daily",
+  "days_of_week": [0, 1, 2, 3, 4, 5, 6],
+  "accounts": {
+    "aliyah.manifests": { "enabled": true, "time_utc": "06:30" },
+    "aliyah.journals": { "enabled": true, "time_utc": "06:30" },
+    "riley.manifests": { "enabled": true, "time_utc": "06:30" },
+    "riley.journals": { "enabled": true, "time_utc": "06:30" },
+    "sanyahealing": { "enabled": true, "time_utc": "06:30" },
+    "sophie.unplugs": { "enabled": true, "time_utc": "01:30" },
+    "emillywilks": { "enabled": true, "time_utc": "01:45" }
   }
 }
