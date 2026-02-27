@@ -24,11 +24,10 @@ import {
 import { Activity, DollarSign, Film, TrendingUp } from "lucide-react";
 
 const PERSONA_COLORS: Record<string, string> = {
+  aliyah: "#8b5cf6",
+  riley: "#10b981",
   sanya: "#ef4444",
   sophie: "#3b82f6",
-  aliyah: "#8b5cf6",
-  olivia: "#f59e0b",
-  riley: "#10b981",
 };
 
 export default function OverviewPage() {

@@ -13,14 +13,11 @@ import {
 } from "@/lib/api";
 
 const PERSONA_COLORS: Record<string, string> = {
+  aliyah: "#8b5cf6",
+  riley: "#10b981",
   sanya: "#ef4444",
   sophie: "#3b82f6",
-  aliyah: "#8b5cf6",
-  olivia: "#f59e0b",
-  riley: "#10b981",
 };
-
-const VIDEO_TYPE_OPTIONS = ["auto", "original", "ugc_lighting", "outdoor"];
 
 export default function SchedulePage() {
   const [state, setState] = useState<ScheduleState | null>(null);
@@ -66,7 +63,7 @@ export default function SchedulePage() {
         slot.type === "video"
           ? {
               video_personas: {
-                [slot.persona!]: { enabled: !slot.enabled },
+                [slot.account!]: { enabled: !slot.enabled },
               },
             }
           : {
@@ -75,18 +72,6 @@ export default function SchedulePage() {
               },
             };
       const updated = await updateSchedule(data);
-      setState(updated);
-    } finally {
-      setUpdating(false);
-    }
-  }
-
-  async function changeVideoType(persona: string, videoType: string) {
-    setUpdating(true);
-    try {
-      const updated = await updateSchedule({
-        video_personas: { [persona]: { video_type: videoType } },
-      });
       setState(updated);
     } finally {
       setUpdating(false);
@@ -142,13 +127,7 @@ export default function SchedulePage() {
                 <span>{state.video_time_ist}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">
-                  Today&apos;s video type
-                </span>
-                <Badge variant="outline">{state.today_video_type}</Badge>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Active personas</span>
+                <span className="text-muted-foreground">Active accounts</span>
                 <span>{videoSlots.filter((s) => s.enabled).length} / {videoSlots.length}</span>
               </div>
             </div>
@@ -194,9 +173,8 @@ export default function SchedulePage() {
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
                   <th className="pb-2 pr-4 font-medium">Type</th>
-                  <th className="pb-2 pr-4 font-medium">Persona / Account</th>
+                  <th className="pb-2 pr-4 font-medium">Account</th>
                   <th className="pb-2 pr-4 font-medium">Time (IST)</th>
-                  <th className="pb-2 pr-4 font-medium">Video Type</th>
                   <th className="pb-2 pr-4 font-medium">Enabled</th>
                   <th className="pb-2 pr-4 font-medium">Last Run</th>
                   <th className="pb-2 font-medium">Status</th>
@@ -204,10 +182,11 @@ export default function SchedulePage() {
               </thead>
               <tbody>
                 {state.slots.map((slot, i) => {
-                  const name = slot.persona || slot.account || "—";
+                  const name = slot.account || slot.persona || "—";
+                  const persona = slot.persona || (slot.account ? slot.account.split(".")[0] : null);
                   const color =
-                    slot.persona && PERSONA_COLORS[slot.persona]
-                      ? PERSONA_COLORS[slot.persona]
+                    persona && PERSONA_COLORS[persona]
+                      ? PERSONA_COLORS[persona]
                       : undefined;
                   return (
                     <tr key={i} className="border-b last:border-0">
@@ -226,26 +205,6 @@ export default function SchedulePage() {
                       </td>
                       <td className="py-3 pr-4 text-muted-foreground">
                         {slot.time_ist}
-                      </td>
-                      <td className="py-3 pr-4">
-                        {slot.type === "video" ? (
-                          <select
-                            className="bg-transparent border rounded px-2 py-1 text-sm"
-                            value={slot.video_type || "auto"}
-                            disabled={updating}
-                            onChange={(e) =>
-                              changeVideoType(slot.persona!, e.target.value)
-                            }
-                          >
-                            {VIDEO_TYPE_OPTIONS.map((vt) => (
-                              <option key={vt} value={vt}>
-                                {vt}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
                       </td>
                       <td className="py-3 pr-4">
                         <Button

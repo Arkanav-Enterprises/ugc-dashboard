@@ -156,11 +156,11 @@ export default function ChatPage() {
   };
 
   const executeAction = async (action: Action) => {
-    const configs: Record<Action, { persona: string; dry_run?: boolean; skip_gen?: boolean }> = {
-      generate: { persona: "sanya" },
-      "dry-run": { persona: "sanya", dry_run: true },
-      "caption-only": { persona: "sanya", dry_run: true, skip_gen: true },
-      "run-all": { persona: "all" },
+    const configs: Record<Action, { account: string; dry_run?: boolean; idea_only?: boolean }> = {
+      generate: { account: "aliyah.manifests" },
+      "dry-run": { account: "aliyah.manifests", dry_run: true },
+      "caption-only": { account: "aliyah.manifests", dry_run: true, idea_only: true },
+      "run-all": { account: "aliyah.manifests" },
     };
 
     setRunningAction(action);

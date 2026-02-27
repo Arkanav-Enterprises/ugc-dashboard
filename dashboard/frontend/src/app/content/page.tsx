@@ -14,59 +14,41 @@ import { getReels, videoByPathUrl, type PipelineRun } from "@/lib/api";
 import { Copy, Play } from "lucide-react";
 
 const PERSONA_COLORS: Record<string, string> = {
+  aliyah: "#8b5cf6",
+  riley: "#10b981",
   sanya: "#ef4444",
   sophie: "#3b82f6",
-  aliyah: "#8b5cf6",
-  olivia: "#f59e0b",
-  riley: "#10b981",
 };
 
-const PERSONAS = ["all", "sanya", "sophie", "aliyah", "olivia", "riley"];
-const VIDEO_TYPES = ["all", "original", "ugc_lighting", "outdoor"];
+const PERSONAS = ["all", "aliyah", "riley", "sanya", "sophie"];
 
 export default function ContentGalleryPage() {
   const [reels, setReels] = useState<PipelineRun[]>([]);
   const [personaFilter, setPersonaFilter] = useState("all");
-  const [typeFilter, setTypeFilter] = useState("all");
   const [selected, setSelected] = useState<PipelineRun | null>(null);
 
   useEffect(() => {
     const params: Record<string, string> = {};
     if (personaFilter !== "all") params.persona = personaFilter;
-    if (typeFilter !== "all") params.video_type = typeFilter;
     getReels(params).then(setReels);
-  }, [personaFilter, typeFilter]);
+  }, [personaFilter]);
 
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Content Gallery</h2>
 
-      <div className="flex gap-2 flex-wrap">
-        <div className="flex gap-1">
-          {PERSONAS.map((p) => (
-            <Button
-              key={p}
-              variant={personaFilter === p ? "default" : "outline"}
-              size="sm"
-              onClick={() => setPersonaFilter(p)}
-              className="capitalize"
-            >
-              {p}
-            </Button>
-          ))}
-        </div>
-        <div className="flex gap-1 ml-4">
-          {VIDEO_TYPES.map((t) => (
-            <Button
-              key={t}
-              variant={typeFilter === t ? "default" : "outline"}
-              size="sm"
-              onClick={() => setTypeFilter(t)}
-            >
-              {t === "all" ? "all types" : t.replace("_", " ")}
-            </Button>
-          ))}
-        </div>
+      <div className="flex gap-1 flex-wrap">
+        {PERSONAS.map((p) => (
+          <Button
+            key={p}
+            variant={personaFilter === p ? "default" : "outline"}
+            size="sm"
+            onClick={() => setPersonaFilter(p)}
+            className="capitalize"
+          >
+            {p}
+          </Button>
+        ))}
       </div>
 
       {reels.length === 0 ? (

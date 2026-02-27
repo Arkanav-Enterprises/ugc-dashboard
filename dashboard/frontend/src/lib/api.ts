@@ -251,11 +251,10 @@ export interface AssetInfo {
 
 export interface AssetUsageRow {
   date: string;
-  persona: string;
-  reference_image: string;
+  account: string;
+  hook_clip: string;
+  reaction_clip: string;
   screen_recording: string;
-  app: string;
-  video_type: string;
 }
 
 export interface PersonaAppInfo {
@@ -271,13 +270,10 @@ export interface PersonaConfig {
 }
 
 export interface PipelineRunRequest {
-  persona: string;
-  video_type?: string;
-  app?: string;
-  engine?: string;
+  account: string;
   dry_run?: boolean;
   no_upload?: boolean;
-  skip_gen?: boolean;
+  idea_only?: boolean;
 }
 
 export interface PipelineRunStatus {
@@ -312,7 +308,6 @@ export interface ScheduleState {
   text_pipeline_enabled: boolean;
   video_time_utc: string;
   video_time_ist: string;
-  today_video_type: string;
   slots: ScheduleSlot[];
   cron_history: CronHistoryEntry[];
 }

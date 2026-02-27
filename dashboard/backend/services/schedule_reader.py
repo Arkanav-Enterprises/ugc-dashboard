@@ -5,10 +5,8 @@ import re
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-from config import SCHEDULE_CONFIG, JSONL_PATH, LOGS_DIR
+from config import SCHEDULE_CONFIG, JSONL_PATH, LOGS_DIR, ACCOUNTS
 
-
-VIDEO_TYPES = ["original", "ugc_lighting", "outdoor"]
 
 # IST is UTC+5:30
 IST_OFFSET = timedelta(hours=5, minutes=30)
@@ -22,12 +20,6 @@ def _utc_to_ist(time_str: str) -> str:
     return ist_dt.strftime("%-I:%M %p") + " IST"
 
 
-def _predict_video_type(day_offset: int = 0) -> str:
-    """Replicate the VIDEO_TYPES[day_of_year % 3] rotation logic."""
-    day_of_year = datetime.now().timetuple().tm_yday + day_offset
-    return VIDEO_TYPES[day_of_year % 3]
-
-
 def _read_config() -> dict:
     """Read schedule config, return defaults if file missing."""
     if SCHEDULE_CONFIG.exists():
@@ -36,13 +28,7 @@ def _read_config() -> dict:
         "video_pipeline": {
             "enabled": True,
             "time_utc": "06:30",
-            "personas": {
-                "sanya": {"enabled": True, "video_type": "auto"},
-                "sophie": {"enabled": True, "video_type": "auto"},
-                "aliyah": {"enabled": True, "video_type": "auto"},
-                "olivia": {"enabled": True, "video_type": "auto"},
-                "riley": {"enabled": True, "video_type": "auto"},
-            },
+            "accounts": {acct: {"enabled": True} for acct in ACCOUNTS},
         },
         "text_pipeline": {
             "enabled": True,
@@ -127,20 +113,19 @@ def get_schedule() -> dict:
 
     slots = []
 
-    # Video persona slots
-    for persona, pcfg in vp.get("personas", {}).items():
+    # Video account slots
+    for account, acfg in vp.get("accounts", {}).items():
+        # Derive persona from account name for last-run lookup
+        persona = account.split(".")[0] if "." in account else account
         lr = last_runs.get(persona)
-        effective_type = pcfg.get("video_type", "auto")
-        if effective_type == "auto":
-            effective_type = _predict_video_type()
         slots.append({
             "type": "video",
             "persona": persona,
-            "account": None,
+            "account": account,
             "time_utc": vp.get("time_utc", "06:30"),
             "time_ist": _utc_to_ist(vp.get("time_utc", "06:30")),
-            "video_type": pcfg.get("video_type", "auto"),
-            "enabled": pcfg.get("enabled", True) and vp.get("enabled", True),
+            "video_type": "default",
+            "enabled": acfg.get("enabled", True) and vp.get("enabled", True),
             "last_run": lr[0] if lr else None,
             "last_status": lr[1] if lr else None,
         })
@@ -164,7 +149,6 @@ def get_schedule() -> dict:
         "text_pipeline_enabled": tp.get("enabled", True),
         "video_time_utc": vp.get("time_utc", "06:30"),
         "video_time_ist": _utc_to_ist(vp.get("time_utc", "06:30")),
-        "today_video_type": _predict_video_type(),
         "slots": slots,
         "cron_history": cron_history,
     }
@@ -181,9 +165,9 @@ def update_schedule(data: dict) -> dict:
         config["text_pipeline"]["enabled"] = data["text_pipeline_enabled"]
 
     if data.get("video_personas"):
-        for persona, updates in data["video_personas"].items():
-            if persona in config["video_pipeline"]["personas"]:
-                config["video_pipeline"]["personas"][persona].update(updates)
+        for account, updates in data["video_personas"].items():
+            if account in config["video_pipeline"].get("accounts", {}):
+                config["video_pipeline"]["accounts"][account].update(updates)
 
     if data.get("text_accounts"):
         for account, updates in data["text_accounts"].items():

@@ -18,11 +18,10 @@ import {
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 const PERSONA_COLORS: Record<string, string> = {
+  aliyah: "#8b5cf6",
+  riley: "#10b981",
   sanya: "#ef4444",
   sophie: "#3b82f6",
-  aliyah: "#8b5cf6",
-  olivia: "#f59e0b",
-  riley: "#10b981",
 };
 
 export default function PipelineMonitorPage() {
@@ -50,7 +49,7 @@ export default function PipelineMonitorPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium">
-            Cost Trend (daily cap: $5.00)
+            Cost Trend (daily cap: $0.50)
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -62,10 +61,10 @@ export default function PipelineMonitorPage() {
                 <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `$${v}`} />
                 <Tooltip formatter={(v) => [`$${Number(v).toFixed(2)}`, "Spend"]} />
                 <ReferenceLine
-                  y={5}
+                  y={0.5}
                   stroke="#ef4444"
                   strokeDasharray="5 5"
-                  label={{ value: "Cap $5", position: "right", fontSize: 11 }}
+                  label={{ value: "Cap $0.50", position: "right", fontSize: 11 }}
                 />
                 <Area
                   type="monotone"

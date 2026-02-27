@@ -1,34 +1,53 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronRight, Play, Loader2 } from "lucide-react";
 import {
-  getPersonaConfigs,
   triggerPipelineRun,
   triggerLifestyleRun,
   getPipelineRunStatus,
-  type PersonaConfig,
   type PipelineRunStatus,
 } from "@/lib/api";
 
 interface TrackedRun extends PipelineRunStatus {
-  videoType?: string;
+  accountName?: string;
 }
 
-type PipelineMode = "ugc" | "lifestyle";
+const ACCOUNTS = [
+  "aliyah.manifests",
+  "aliyah.journals",
+  "riley.manifests",
+  "riley.journals",
+  "sanyahealing",
+  "sophie.unplugs",
+  "emillywilks",
+];
 
-export default function GenerateVideosPage() {
-  const [mode, setMode] = useState<PipelineMode>("ugc");
-  const [configs, setConfigs] = useState<PersonaConfig[]>([]);
-  const [selected, setSelected] = useState<string>("");
-  const [checkedApps, setCheckedApps] = useState<Set<string>>(new Set());
-  const [videoType, setVideoType] = useState<string>("auto");
-  const [engine, setEngine] = useState<string>("veo");
+const ACCOUNT_COLORS: Record<string, string> = {
+  aliyah: "#8b5cf6",
+  riley: "#10b981",
+  sanya: "#ef4444",
+  sophie: "#3b82f6",
+  emillywilks: "#f59e0b",
+};
+
+function accountColor(account: string): string {
+  const persona = account.split(".")[0];
+  return ACCOUNT_COLORS[persona] || ACCOUNT_COLORS[account] || "#6b7280";
+}
+
+type PipelineMode = "content" | "lifestyle";
+
+export default function GenerateContentPage() {
+  const [mode, setMode] = useState<PipelineMode>("content");
+  const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(
+    new Set(["aliyah.manifests"])
+  );
   const [dryRun, setDryRun] = useState(false);
   const [noUpload, setNoUpload] = useState(false);
-  const [skipGen, setSkipGen] = useState(false);
+  const [ideaOnly, setIdeaOnly] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [runs, setRuns] = useState<TrackedRun[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -38,31 +57,11 @@ export default function GenerateVideosPage() {
   const [lifestyleDryRun, setLifestyleDryRun] = useState(false);
   const [lifestyleNoUpload, setLifestyleNoUpload] = useState(false);
 
-  useEffect(() => {
-    getPersonaConfigs().then((c) => {
-      setConfigs(c);
-      if (c.length > 0) {
-        setSelected(c[0].persona);
-        setCheckedApps(new Set(c[0].apps.map((a) => a.slug)));
-      }
-    });
-  }, []);
-
-  const currentConfig = configs.find((c) => c.persona === selected);
-
-  const selectPersona = (persona: string) => {
-    const cfg = configs.find((c) => c.persona === persona);
-    if (!cfg) return;
-    setSelected(persona);
-    setCheckedApps(new Set(cfg.apps.map((a) => a.slug)));
-    setVideoType(cfg.video_types.length === 1 ? cfg.video_types[0] : "auto");
-  };
-
-  const toggleApp = (slug: string) => {
-    setCheckedApps((prev) => {
+  const toggleAccount = (account: string) => {
+    setSelectedAccounts((prev) => {
       const next = new Set(prev);
-      if (next.has(slug)) next.delete(slug);
-      else next.add(slug);
+      if (next.has(account)) next.delete(account);
+      else next.add(account);
       return next;
     });
   };
@@ -101,26 +100,19 @@ export default function GenerateVideosPage() {
   }, []);
 
   const handleGenerate = async () => {
-    if (!currentConfig || checkedApps.size === 0) return;
+    if (selectedAccounts.size === 0) return;
     setLaunching(true);
 
-    const appsToRun = currentConfig.apps.filter((a) => checkedApps.has(a.slug));
-    const vt = videoType === "auto" ? undefined : videoType;
-
-    const promises = appsToRun.map((app) =>
+    const promises = Array.from(selectedAccounts).map((account) =>
       triggerPipelineRun({
-        persona: selected,
-        video_type: vt,
-        app: currentConfig.apps.length > 1 ? app.slug : undefined,
-        engine,
+        account,
         dry_run: dryRun,
         no_upload: noUpload,
-        skip_gen: skipGen,
+        idea_only: ideaOnly,
       }).then(
         (status): TrackedRun => ({
           ...status,
-          videoType: vt || "auto",
-          app: app.slug,
+          accountName: account,
         })
       )
     );
@@ -143,7 +135,7 @@ export default function GenerateVideosPage() {
         dry_run: lifestyleDryRun,
         no_upload: lifestyleNoUpload,
       });
-      const run: TrackedRun = { ...status, videoType: "lifestyle" };
+      const run: TrackedRun = { ...status, accountName: "lifestyle" };
       setRuns((prev) => [run, ...prev]);
       if (run.status === "running") startPolling();
     } catch {
@@ -152,22 +144,20 @@ export default function GenerateVideosPage() {
     setLaunching(false);
   };
 
-  const hasFixedType = currentConfig?.video_types.length === 1;
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Generate Videos</h2>
+        <h2 className="text-2xl font-bold">Generate Content</h2>
         <div className="flex gap-2">
           <button
-            onClick={() => setMode("ugc")}
+            onClick={() => setMode("content")}
             className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
-              mode === "ugc"
+              mode === "content"
                 ? "bg-primary text-primary-foreground border-primary"
                 : "text-muted-foreground hover:bg-accent"
             }`}
           >
-            UGC Pipeline
+            Content Pipeline
           </button>
           <button
             onClick={() => setMode("lifestyle")}
@@ -230,115 +220,70 @@ export default function GenerateVideosPage() {
         </>
       ) : (
         <>
-      {/* Persona selector */}
-      <div className="flex gap-2">
-        {configs.map((cfg) => (
-          <button
-            key={cfg.persona}
-            onClick={() => selectPersona(cfg.persona)}
-            className="px-4 py-2 rounded-md text-sm font-medium border transition-colors"
-            style={
-              selected === cfg.persona
-                ? { backgroundColor: cfg.color, color: "#fff", borderColor: cfg.color }
-                : { borderColor: cfg.color, color: cfg.color }
-            }
-          >
-            {cfg.persona}
-          </button>
-        ))}
-      </div>
-
-      {currentConfig && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Apps card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium">Apps</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {currentConfig.apps.map((app) => (
-                <label
-                  key={app.slug}
-                  className="flex items-center gap-3 cursor-pointer"
+      {/* Account selector */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-medium">Select Accounts</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            {ACCOUNTS.map((account) => {
+              const color = accountColor(account);
+              const isSelected = selectedAccounts.has(account);
+              return (
+                <button
+                  key={account}
+                  onClick={() => toggleAccount(account)}
+                  className="px-3 py-1.5 rounded-md text-sm font-medium border transition-colors"
+                  style={
+                    isSelected
+                      ? { backgroundColor: color, color: "#fff", borderColor: color }
+                      : { borderColor: color, color }
+                  }
                 >
-                  <input
-                    type="checkbox"
-                    checked={checkedApps.has(app.slug)}
-                    onChange={() => toggleApp(app.slug)}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <span className="text-sm">{app.name}</span>
-                  <Badge variant="secondary" className="text-xs">
-                    {app.slug}
-                  </Badge>
-                </label>
-              ))}
-            </CardContent>
-          </Card>
+                  {account}
+                </button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
-          {/* Video type + options card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium">Settings</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Video type */}
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Video Type
-                </label>
-                {hasFixedType ? (
-                  <Badge variant="secondary">{currentConfig.video_types[0]}</Badge>
-                ) : (
-                  <select
-                    value={videoType}
-                    onChange={(e) => setVideoType(e.target.value)}
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  >
-                    <option value="auto">auto (daily rotation)</option>
-                    {currentConfig.video_types.map((vt) => (
-                      <option key={vt} value={vt}>
-                        {vt}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              {/* Option toggles */}
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-2">
-                  Options
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { label: "Dry Run", value: dryRun, set: setDryRun },
-                    { label: "No Upload", value: noUpload, set: setNoUpload },
-                    { label: "Skip Gen", value: skipGen, set: setSkipGen },
-                  ].map((opt) => (
-                    <button
-                      key={opt.label}
-                      onClick={() => opt.set(!opt.value)}
-                      className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
-                        opt.value
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "text-muted-foreground hover:bg-accent"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {/* Options */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-medium">Options</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: "Dry Run", value: dryRun, set: setDryRun },
+              { label: "No Upload", value: noUpload, set: setNoUpload },
+              { label: "Idea Only", value: ideaOnly, set: setIdeaOnly },
+            ].map((opt) => (
+              <button
+                key={opt.label}
+                onClick={() => opt.set(!opt.value)}
+                className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                  opt.value
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "text-muted-foreground hover:bg-accent"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            ~$0.01 per reel (Claude API only — no video generation costs)
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Generate button */}
       <button
         onClick={handleGenerate}
-        disabled={!currentConfig || checkedApps.size === 0 || launching}
+        disabled={selectedAccounts.size === 0 || launching}
         className="inline-flex items-center gap-2 px-6 py-2.5 rounded-md bg-primary text-primary-foreground font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
       >
         {launching ? (
@@ -348,7 +293,7 @@ export default function GenerateVideosPage() {
         )}
         {launching
           ? "Launching..."
-          : `Generate ${checkedApps.size} run${checkedApps.size !== 1 ? "s" : ""}`}
+          : `Generate ${selectedAccounts.size} run${selectedAccounts.size !== 1 ? "s" : ""}`}
       </button>
         </>
       )}
@@ -363,8 +308,7 @@ export default function GenerateVideosPage() {
           </CardHeader>
           <CardContent className="space-y-1">
             {runs.map((run) => {
-              const cfg = configs.find((c) => c.persona === run.persona);
-              const color = cfg?.color || "#888";
+              const color = accountColor(run.accountName || run.persona);
               const isExpanded = expanded === run.id;
               return (
                 <div key={run.id} className="border rounded-md">

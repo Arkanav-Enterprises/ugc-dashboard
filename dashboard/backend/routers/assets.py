@@ -63,7 +63,7 @@ def get_asset_usage():
     in_table = False
     for line in content.split("\n"):
         line = line.strip()
-        if line.startswith("|") and "Date" in line:
+        if line.startswith("|") and "Date" in line and "Account" in line:
             in_table = True
             continue
         if line.startswith("|---"):
@@ -73,12 +73,13 @@ def get_asset_usage():
             if len(parts) >= 5:
                 rows.append({
                     "date": parts[0],
-                    "persona": parts[1],
-                    "reference_image": parts[2],
-                    "screen_recording": parts[3],
-                    "app": parts[4],
-                    "video_type": parts[5] if len(parts) > 5 else "",
+                    "account": parts[1],
+                    "hook_clip": parts[2],
+                    "reaction_clip": parts[3],
+                    "screen_recording": parts[4],
                 })
+        elif in_table and not line.startswith("|"):
+            in_table = False
     return rows
 
 

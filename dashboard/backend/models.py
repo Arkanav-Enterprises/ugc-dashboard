@@ -70,13 +70,10 @@ class PersonaConfig(BaseModel):
 
 
 class PipelineRunRequest(BaseModel):
-    persona: str = "sanya"
-    video_type: Optional[str] = None
-    app: Optional[str] = None
-    engine: str = "veo"
+    account: str = "aliyah.manifests"
     dry_run: bool = False
     no_upload: bool = False
-    skip_gen: bool = False
+    idea_only: bool = False
 
 
 class PipelineRunStatus(BaseModel):
@@ -128,7 +125,6 @@ class ScheduleState(BaseModel):
     text_pipeline_enabled: bool
     video_time_utc: str
     video_time_ist: str
-    today_video_type: str
     slots: list[ScheduleSlot]
     cron_history: list[CronHistoryEntry]
 

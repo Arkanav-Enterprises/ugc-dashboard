@@ -2,10 +2,14 @@
   "video_pipeline": {
     "enabled": true,
     "time_utc": "06:30",
-    "personas": {
-      "sanya": { "enabled": true, "video_type": "auto" },
-      "sophie": { "enabled": true, "video_type": "auto" },
-      "aliyah": { "enabled": true, "video_type": "auto" }
+    "accounts": {
+      "aliyah.manifests": { "enabled": true },
+      "aliyah.journals": { "enabled": true },
+      "riley.manifests": { "enabled": true },
+      "riley.journals": { "enabled": true },
+      "sanyahealing": { "enabled": true },
+      "sophie.unplugs": { "enabled": true },
+      "emillywilks": { "enabled": true }
     }
   },
   "text_pipeline": {

@@ -16,27 +16,22 @@ def start_pipeline_run(req: PipelineRunRequest) -> PipelineRunStatus:
     """Start a pipeline run as a subprocess."""
     run_id = str(uuid.uuid4())[:8]
 
-    cmd = [str(PROJECT_VENV_PYTHON), str(SCRIPTS_DIR / "autopilot_video.py"),
-           "--persona", req.persona]
+    cmd = [str(PROJECT_VENV_PYTHON), str(SCRIPTS_DIR / "autopilot.py"),
+           "--account", req.account]
 
-    if req.video_type:
-        cmd += ["--video-type", req.video_type]
-    if req.app:
-        cmd += ["--app", req.app]
-    if req.engine and req.engine != "veo":
-        cmd += ["--engine", req.engine]
     if req.dry_run:
         cmd.append("--dry-run")
-    if req.no_upload:
-        cmd.append("--no-upload")
-    if req.skip_gen:
-        cmd.append("--skip-gen")
+    if req.idea_only:
+        cmd.append("--idea-only")
+
+    # Derive persona from account name for display
+    persona = req.account.split(".")[0] if "." in req.account else req.account
 
     _runs[run_id] = {
         "id": run_id,
         "status": "running",
-        "persona": req.persona,
-        "app": req.app,
+        "persona": persona,
+        "app": None,
         "started_at": datetime.now(timezone.utc).isoformat(),
         "output": "",
         "process": None,
@@ -69,8 +64,8 @@ def start_pipeline_run(req: PipelineRunRequest) -> PipelineRunStatus:
     return PipelineRunStatus(
         id=run_id,
         status="running",
-        persona=req.persona,
-        app=req.app,
+        persona=persona,
+        app=None,
         started_at=_runs[run_id]["started_at"],
     )
 

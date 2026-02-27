@@ -24,7 +24,7 @@ const NAV_ITEMS = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/content", label: "Content Gallery", icon: Film },
   { href: "/pipeline", label: "Pipeline Monitor", icon: Activity },
-  { href: "/generate", label: "Generate Videos", icon: Video },
+  { href: "/generate", label: "Generate Content", icon: Video },
   { href: "/schedule", label: "Schedule", icon: Calendar },
   { href: "/research", label: "Trend Research", icon: TrendingUp },
   { href: "/scout", label: "Opportunity Scout", icon: Search },
@@ -66,7 +66,7 @@ export function Sidebar() {
         })}
       </nav>
       <div className="p-3 border-t text-xs text-muted-foreground flex items-center justify-between">
-        <span>5 personas &middot; local</span>
+        <span>7 accounts &middot; local</span>
         <ThemeToggle />
       </div>
     </aside>

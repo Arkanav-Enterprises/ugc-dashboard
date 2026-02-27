@@ -14,11 +14,10 @@ import {
 } from "@/lib/api";
 
 const PERSONA_COLORS: Record<string, string> = {
+  aliyah: "#8b5cf6",
+  riley: "#10b981",
   sanya: "#ef4444",
   sophie: "#3b82f6",
-  aliyah: "#8b5cf6",
-  olivia: "#f59e0b",
-  riley: "#10b981",
 };
 
 export default function AssetManagerPage() {
@@ -138,38 +137,41 @@ export default function AssetManagerPage() {
                     <thead>
                       <tr className="border-b text-left">
                         <th className="pb-2 pr-4 font-medium">Date</th>
-                        <th className="pb-2 pr-4 font-medium">Persona</th>
-                        <th className="pb-2 pr-4 font-medium">Ref Image</th>
-                        <th className="pb-2 pr-4 font-medium">Screen Rec</th>
-                        <th className="pb-2 pr-4 font-medium">App</th>
-                        <th className="pb-2 font-medium">Video Type</th>
+                        <th className="pb-2 pr-4 font-medium">Account</th>
+                        <th className="pb-2 pr-4 font-medium">Hook Clip</th>
+                        <th className="pb-2 pr-4 font-medium">Reaction Clip</th>
+                        <th className="pb-2 font-medium">Screen Rec</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {usage.map((row, i) => (
-                        <tr key={i} className="border-b last:border-0">
-                          <td className="py-2 pr-4">{row.date}</td>
-                          <td className="py-2 pr-4">
-                            <Badge
-                              variant="outline"
-                              style={{
-                                borderColor: PERSONA_COLORS[row.persona],
-                                color: PERSONA_COLORS[row.persona],
-                              }}
-                            >
-                              {row.persona}
-                            </Badge>
-                          </td>
-                          <td className="py-2 pr-4 text-muted-foreground">
-                            {row.reference_image}
-                          </td>
-                          <td className="py-2 pr-4 text-muted-foreground">
-                            {row.screen_recording}
-                          </td>
-                          <td className="py-2 pr-4">{row.app}</td>
-                          <td className="py-2">{row.video_type}</td>
-                        </tr>
-                      ))}
+                      {usage.map((row, i) => {
+                        const persona = row.account.split(".")[0];
+                        return (
+                          <tr key={i} className="border-b last:border-0">
+                            <td className="py-2 pr-4">{row.date}</td>
+                            <td className="py-2 pr-4">
+                              <Badge
+                                variant="outline"
+                                style={{
+                                  borderColor: PERSONA_COLORS[persona],
+                                  color: PERSONA_COLORS[persona],
+                                }}
+                              >
+                                {row.account}
+                              </Badge>
+                            </td>
+                            <td className="py-2 pr-4 text-muted-foreground">
+                              {row.hook_clip}
+                            </td>
+                            <td className="py-2 pr-4 text-muted-foreground">
+                              {row.reaction_clip}
+                            </td>
+                            <td className="py-2 text-muted-foreground">
+                              {row.screen_recording}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
