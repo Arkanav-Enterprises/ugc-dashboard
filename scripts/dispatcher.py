@@ -6,6 +6,7 @@ Crontab entry:
 """
 
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone, timedelta
@@ -16,6 +17,20 @@ CONFIG_PATH = PROJECT_ROOT / "config" / "schedule.json"
 LOCK_DIR = PROJECT_ROOT / "logs"
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 VENV_PYTHON = PROJECT_ROOT / ".venv" / "bin" / "python3"
+ENV_FILE = PROJECT_ROOT / ".env"
+
+
+def _load_dotenv() -> dict[str, str]:
+    """Load .env file into os.environ and return the full env dict."""
+    if ENV_FILE.exists():
+        for line in ENV_FILE.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            val = val.strip().strip("'\"")
+            os.environ.setdefault(key.strip(), val)
+    return dict(os.environ)
 
 now = datetime.now(timezone.utc)
 hhmm = now.strftime("%H:%M")
@@ -58,11 +73,12 @@ def acquire_lock(key: str) -> None:
     lock_path(key).write_text(now.isoformat())
 
 
-def fire(cmd: list[str], label: str) -> None:
+def fire(cmd: list[str], label: str, env: dict[str, str]) -> None:
     log(f"FIRE: {label} -> {' '.join(cmd)}")
     subprocess.Popen(
         cmd,
         cwd=str(PROJECT_ROOT),
+        env=env,
         stdout=open(LOCK_DIR / f"{label}_{date_str}.log", "a"),
         stderr=subprocess.STDOUT,
     )
@@ -80,6 +96,8 @@ def cleanup_old_locks(max_age_days: int = 7) -> None:
 
 
 def main() -> None:
+    env = _load_dotenv()
+
     config = load_config()
     if not config:
         return
@@ -112,7 +130,7 @@ def main() -> None:
             continue
 
         acquire_lock(key)
-        fire([python, autopilot, "--account", account], account)
+        fire([python, autopilot, "--account", account], account, env)
 
     cleanup_old_locks()
 
