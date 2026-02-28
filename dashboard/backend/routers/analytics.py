@@ -1,11 +1,11 @@
-"""Analytics endpoints — PostHog funnel/trend data + AI Q&A."""
+"""Analytics endpoints — PostHog funnel/trend data + AI Q&A + snapshots."""
 
 import json
 
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
-from models import AnalyticsAskRequest
+from models import AnalyticsAskRequest, SaveSnapshotRequest
 from services.posthog_client import (
     get_funnel,
     get_trend,
@@ -15,6 +15,7 @@ from services.posthog_client import (
     FEATURE_EVENTS,
     RETENTION_EVENTS,
 )
+from services.funnel_snapshots import list_snapshots, save_snapshot
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
@@ -43,6 +44,19 @@ async def trends_endpoint(
 @router.get("/summary")
 async def summary_endpoint():
     return await get_combined_summary()
+
+
+@router.get("/snapshots")
+async def list_snapshots_endpoint(app: str = Query("manifest-lock")):
+    return list_snapshots(app)
+
+
+@router.post("/snapshots")
+async def save_snapshot_endpoint(req: SaveSnapshotRequest):
+    funnel = await get_funnel(req.app, date_from=req.date_from)
+    if funnel.get("error"):
+        return {"error": funnel["error"]}
+    return save_snapshot(req.app, funnel, req.notes)
 
 
 @router.post("/ask")

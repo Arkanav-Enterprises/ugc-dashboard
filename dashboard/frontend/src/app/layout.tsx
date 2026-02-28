@@ -35,7 +35,7 @@ export default function RootLayout({
       >
         <div className="flex h-screen">
           <Sidebar />
-          <main className="flex-1 overflow-auto p-6">{children}</main>
+          <main className="flex-1 overflow-auto px-10 py-8">{children}</main>
         </div>
       </body>
     </html>

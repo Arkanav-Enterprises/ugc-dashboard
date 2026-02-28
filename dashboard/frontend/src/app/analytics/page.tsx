@@ -10,8 +10,10 @@ import {
   getAnalyticsFunnel,
   getAnalyticsTrends,
   streamAnalyticsAsk,
+  getFunnelSnapshots,
+  saveFunnelSnapshot,
   type FunnelResult,
-  type FunnelStep,
+  type FunnelSnapshot,
   type TrendSeries,
 } from "@/lib/api";
 import ReactMarkdown from "react-markdown";
@@ -19,14 +21,11 @@ import remarkGfm from "remark-gfm";
 import {
   LineChart,
   Line,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Cell,
 } from "recharts";
 import {
   Send,
@@ -35,6 +34,7 @@ import {
   Users,
   Percent,
   BarChart3,
+  Save,
 } from "lucide-react";
 
 const APPS = [
@@ -76,6 +76,13 @@ export default function AnalyticsPage() {
   const [trends, setTrends] = useState<TrendSeries[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Snapshots
+  const [snapshots, setSnapshots] = useState<FunnelSnapshot[]>([]);
+  const [compareIdx, setCompareIdx] = useState<number>(-1);
+  const [saving, setSaving] = useState(false);
+  const [saveNotes, setSaveNotes] = useState("");
+  const [showSaveInput, setShowSaveInput] = useState(false);
+
   // AI Chat
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -85,18 +92,57 @@ export default function AnalyticsPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [f, t] = await Promise.all([
+      const [f, t, s] = await Promise.all([
         getAnalyticsFunnel(app, dateRange),
         getAnalyticsTrends(app, dateRange),
+        getFunnelSnapshots(app),
       ]);
       setFunnel(f);
       setTrends(t);
+      setSnapshots(s);
+      setCompareIdx(-1);
     } catch {
       setFunnel({ steps: [], overall_conversion: 0, error: "Failed to load" });
       setTrends([]);
+      setSnapshots([]);
     }
     setLoading(false);
   };
+
+  const handleSaveSnapshot = async () => {
+    setSaving(true);
+    try {
+      await saveFunnelSnapshot(app, dateRange, saveNotes || undefined);
+      const s = await getFunnelSnapshots(app);
+      setSnapshots(s);
+      setShowSaveInput(false);
+      setSaveNotes("");
+    } catch {
+      // ignore
+    }
+    setSaving(false);
+  };
+
+  // Build a map of snapshot step conversion rates for comparison
+  const compareSnapshot = compareIdx >= 0 ? snapshots[compareIdx] : null;
+  const snapshotConvMap: Record<string, number> = {};
+  if (compareSnapshot) {
+    const ss = compareSnapshot.steps;
+    if (Array.isArray(ss)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const items = ss as any[];
+      const firstCount = items[0]?.count ?? 1;
+      for (const s of items) {
+        if (s && typeof s === "object" && s.name) {
+          if (typeof s.conversion_rate === "number") {
+            snapshotConvMap[s.name] = s.conversion_rate;
+          } else if (typeof s.count === "number" && firstCount > 0) {
+            snapshotConvMap[s.name] = (s.count / firstCount) * 100;
+          }
+        }
+      }
+    }
+  }
 
   useEffect(() => {
     loadData();
@@ -160,13 +206,21 @@ export default function AnalyticsPage() {
     ? dauSeries.labels.map((label, i) => ({ date: label, dau: dauSeries.data[i] ?? 0 }))
     : [];
 
-  // Funnel bar chart data
-  const funnelChartData = (funnel?.steps ?? []).map((s) => ({
-    name: formatStepName(s.name),
-    count: s.count,
-    conversion_rate: s.conversion_rate,
-    drop_off_rate: s.drop_off_rate,
-  }));
+  // Funnel rows with optional delta from snapshot comparison
+  const funnelRows = (funnel?.steps ?? []).map((s) => {
+    let delta = "";
+    const prevConv = snapshotConvMap[s.name];
+    if (prevConv !== undefined) {
+      const diff = s.conversion_rate - prevConv;
+      if (Math.abs(diff) < 0.1) delta = "=";
+      else delta = diff > 0 ? `↑+${diff.toFixed(1)}%` : `↓${diff.toFixed(1)}%`;
+    }
+    let flag = "";
+    if (s.drop_off_rate >= 25) flag = "CLIFF";
+    else if (s.name === "onboarding_completed" && s.count === 0) flag = "BUG";
+    return { ...s, delta, flag };
+  });
+  const maxCount = funnelRows[0]?.count || 1;
 
   return (
     <div className="space-y-6">
@@ -235,70 +289,159 @@ export default function AnalyticsPage() {
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            {/* Funnel chart — 2 cols */}
-            <Card className="col-span-2">
-              <CardHeader>
-                <CardTitle className="text-sm font-medium">Onboarding Funnel</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {funnelChartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={funnelChartData} layout="vertical" margin={{ left: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis type="number" tick={{ fontSize: 12 }} />
-                      <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={140} />
-                      <Tooltip
-                        formatter={(value, _name, props) => {
-                          const v = Number(value ?? 0);
-                          const p = props?.payload as { conversion_rate?: number; drop_off_rate?: number } | undefined;
-                          return [
-                            `${v.toLocaleString()} users (${p?.conversion_rate ?? 0}% conv, ${p?.drop_off_rate ?? 0}% drop)`,
-                            "Count",
-                          ];
-                        }}
-                      />
-                      <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                        {funnelChartData.map((_entry, i) => (
-                          <Cell key={i} fill={stepColor(i, funnelChartData.length)} />
+          {/* Funnel table — full width */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Onboarding Funnel — {funnelEntries} started, {funnel?.steps?.[funnel.steps.length - 1]?.count ?? 0} completed ({overallConversion}%)
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                {showSaveInput ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="text"
+                      placeholder="Change notes (optional)"
+                      value={saveNotes}
+                      onChange={(e) => setSaveNotes(e.target.value)}
+                      className="h-7 text-xs border rounded px-2 w-48 bg-background"
+                      onKeyDown={(e) => e.key === "Enter" && handleSaveSnapshot()}
+                    />
+                    <Button size="sm" variant="default" onClick={handleSaveSnapshot} disabled={saving} className="h-7 text-xs">
+                      {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setShowSaveInput(false)} className="h-7 text-xs">
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={() => setShowSaveInput(true)} className="h-7 text-xs gap-1">
+                    <Save className="h-3 w-3" /> Save Snapshot
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {funnelRows.length > 0 ? (
+                <div className="bg-zinc-950 rounded-b-lg overflow-x-auto">
+                  <table className="w-full font-mono text-[13px] leading-6">
+                    <thead>
+                      <tr className="text-zinc-400 border-b border-zinc-800">
+                        <th className="text-left pl-4 pr-2 py-2 font-normal">Step</th>
+                        <th className="text-right px-2 py-2 font-normal w-16">Count</th>
+                        <th className="text-left px-2 py-2 font-normal w-40">Funnel</th>
+                        <th className="text-right px-2 py-2 font-normal w-14">Conv</th>
+                        <th className="text-right px-2 py-2 font-normal w-20">Drop-off</th>
+                        {compareSnapshot && <th className="text-right px-2 py-2 font-normal w-20">vs prev</th>}
+                        <th className="pr-4 py-2 w-24"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {funnelRows.map((row, i) => {
+                        const barPct = maxCount > 0 ? (row.count / maxCount) * 100 : 0;
+                        return (
+                          <tr key={i} className="border-b border-zinc-900 hover:bg-zinc-900/50">
+                            <td className="text-zinc-200 pl-4 pr-2 py-1 whitespace-nowrap">
+                              {row.name.replace(/^onboarding_/, "")}
+                            </td>
+                            <td className="text-zinc-300 text-right px-2 py-1 tabular-nums">{row.count}</td>
+                            <td className="px-2 py-1">
+                              <div className="h-4 w-full bg-zinc-800 rounded-sm overflow-hidden">
+                                <div
+                                  className="h-full rounded-sm"
+                                  style={{
+                                    width: `${barPct}%`,
+                                    backgroundColor: stepColor(i, funnelRows.length),
+                                    opacity: 0.8,
+                                  }}
+                                />
+                              </div>
+                            </td>
+                            <td className="text-zinc-300 text-right px-2 py-1 tabular-nums">{row.conversion_rate}%</td>
+                            <td className={`text-right px-2 py-1 tabular-nums ${row.drop_off_rate > 0 ? "text-red-400" : "text-zinc-600"}`}>
+                              {row.drop_off_rate > 0 ? `-${row.drop_off_rate}%` : ""}
+                            </td>
+                            {compareSnapshot && (
+                              <td className={`text-right px-2 py-1 tabular-nums text-xs ${
+                                row.delta.startsWith("↑") ? "text-green-400" : row.delta.startsWith("↓") ? "text-red-400" : "text-zinc-600"
+                              }`}>
+                                {row.delta}
+                              </td>
+                            )}
+                            <td className="pr-4 py-1 text-xs font-bold">
+                              {row.flag === "CLIFF" && <span className="text-amber-400">&lt;&lt; CLIFF</span>}
+                              {row.flag === "BUG" && <span className="text-red-500">&lt;&lt; BUG</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <div className="px-4 py-3 text-zinc-400 text-xs font-mono border-t border-zinc-800 flex items-center justify-between">
+                    <span>
+                      Overall: {overallConversion}% &nbsp;|&nbsp; Started: {funnelEntries} &nbsp;|&nbsp; Completed: {funnel?.steps?.[funnel.steps.length - 1]?.count ?? 0}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-zinc-500">Compare:</span>
+                      <select
+                        className="h-6 text-xs border border-zinc-700 rounded px-1 bg-zinc-900 text-zinc-300"
+                        value={compareIdx}
+                        onChange={(e) => setCompareIdx(Number(e.target.value))}
+                      >
+                        <option value={-1}>None</option>
+                        {snapshots.map((s, i) => (
+                          <option key={i} value={i}>
+                            {s.date} ({s.overall_conversion}%){s.changes_pending?.length ? ` — ${s.changes_pending[0]}` : ""}
+                          </option>
                         ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No funnel data</p>
-                )}
-              </CardContent>
-            </Card>
+                      </select>
+                      {compareSnapshot && (() => {
+                        const diff = overallConversion - compareSnapshot.overall_conversion;
+                        if (Math.abs(diff) < 0.1) return <span className="text-zinc-500">=</span>;
+                        return diff > 0
+                          ? <span className="text-green-400 font-bold">↑+{diff.toFixed(1)}%</span>
+                          : <span className="text-red-400 font-bold">↓{diff.toFixed(1)}%</span>;
+                      })()}
+                    </div>
+                  </div>
+                  {compareSnapshot?.changes_pending?.length ? (
+                    <div className="px-4 pb-3 text-zinc-500 text-xs font-mono">
+                      Notes: {compareSnapshot.changes_pending.join(", ")}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground p-4">No funnel data</p>
+              )}
+            </CardContent>
+          </Card>
 
-            {/* DAU trend — 1 col */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium">DAU Trend</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {dauChartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={dauChartData}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                      <YAxis tick={{ fontSize: 12 }} />
-                      <Tooltip />
-                      <Line
-                        type="monotone"
-                        dataKey="dau"
-                        stroke="#8b5cf6"
-                        strokeWidth={2}
-                        dot={{ r: 2 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No trend data</p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+          {/* DAU trend */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">DAU Trend</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {dauChartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <LineChart data={dauChartData}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip />
+                    <Line
+                      type="monotone"
+                      dataKey="dau"
+                      stroke="#8b5cf6"
+                      strokeWidth={2}
+                      dot={{ r: 2 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-sm text-muted-foreground">No trend data</p>
+              )}
+            </CardContent>
+          </Card>
 
           {/* AI Chat panel */}
           <Card className="flex flex-col" style={{ height: 400 }}>

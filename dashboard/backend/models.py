@@ -306,6 +306,23 @@ class AnalyticsSummary(BaseModel):
     trends: list[TrendSeries]
 
 
+class FunnelSnapshot(BaseModel):
+    date: str
+    app: str
+    range: str = "30d"
+    overall_conversion: float
+    started: int
+    completed: int
+    steps: list[dict]
+    changes_pending: list[str] = []
+
+
+class SaveSnapshotRequest(BaseModel):
+    app: str
+    date_from: str = "-30d"
+    notes: Optional[str] = None
+
+
 class AnalyticsAskRequest(BaseModel):
     message: str
     history: list[dict] = []

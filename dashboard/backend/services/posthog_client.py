@@ -4,23 +4,28 @@ import httpx
 
 from config import POSTHOG_HOST, POSTHOG_PROJECTS
 
-# Per-app default funnel steps from ANALYTICS.md
+# Per-app full funnel steps (matching scripts/funnel_snapshot.py FUNNEL_STEPS)
 DEFAULT_FUNNELS: dict[str, list[str]] = {
     "manifest-lock": [
-        "onboarding_started",
-        "onboarding_name_entered",
-        "onboarding_goal_selected",
-        "onboarding_manifestation_created",
-        "onboarding_read_aloud_completed",
+        "onboarding_started", "onboarding_intro1_continued", "onboarding_name_entered",
+        "onboarding_age_selected", "onboarding_phone_usage_selected", "onboarding_stats_continued",
+        "onboarding_motivation_continued", "onboarding_goal_selected",
+        "onboarding_how_it_works_continued", "onboarding_mood_selected",
+        "onboarding_manifestation_created", "onboarding_screentime_education_viewed",
+        "onboarding_screentime_passed", "onboarding_apps_selected",
+        "onboarding_read_aloud_completed", "onboarding_commitment_selected",
+        "onboarding_alarm_set", "onboarding_notification_permission_granted",
         "onboarding_completed",
     ],
     "journal-lock": [
-        "onboarding_started",
-        "onboarding_journaling_reasons_selected",
-        "onboarding_manifestation_created",
-        "onboarding_apps_selected",
-        "onboarding_trial_started",
-        "onboarding_completed",
+        "onboarding_started", "onboarding_mascot_story_problem_continued",
+        "onboarding_mascot_story_scrolling_continued", "onboarding_mascot_story_science_continued",
+        "onboarding_mascot_story_solution_continued", "onboarding_journaling_reasons_selected",
+        "onboarding_mind_topics_selected", "onboarding_mood_selected",
+        "onboarding_experience_selected", "onboarding_journaling_style_selected",
+        "onboarding_lock_time_set", "onboarding_guided_reflection_completed",
+        "onboarding_manifestation_created", "onboarding_apps_selected",
+        "onboarding_trial_started", "onboarding_completed",
     ],
 }
 

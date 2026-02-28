@@ -754,6 +754,29 @@ export interface CombinedAnalytics {
   journal_lock: AnalyticsSummary;
 }
 
+export interface FunnelSnapshot {
+  date: string;
+  app: string;
+  range: string;
+  overall_conversion: number;
+  started: number;
+  completed: number;
+  steps: FunnelStep[] | Record<string, number>;
+  changes_pending: string[];
+}
+
+export async function getFunnelSnapshots(app: string) {
+  return fetchAPI<FunnelSnapshot[]>(`/api/analytics/snapshots?app=${app}`);
+}
+
+export async function saveFunnelSnapshot(app: string, dateFrom: string, notes?: string) {
+  return fetchAPI<FunnelSnapshot>("/api/analytics/snapshots", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ app, date_from: dateFrom, notes }),
+  });
+}
+
 export async function getAnalyticsFunnel(app: string, dateFrom: string = "-30d", steps?: string[]) {
   const q = new URLSearchParams({ app, date_from: dateFrom });
   if (steps) q.set("steps", steps.join(","));
