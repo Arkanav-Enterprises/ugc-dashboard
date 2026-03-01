@@ -11,7 +11,6 @@ const PERSONA_COLORS: Record<string, string> = {
   sanya: "#ef4444",
   emilly: "#3b82f6",
   aliyah: "#8b5cf6",
-  olivia: "#f59e0b",
   riley: "#10b981",
 };
 

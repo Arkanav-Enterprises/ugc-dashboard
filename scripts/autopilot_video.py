@@ -127,10 +127,6 @@ PERSONAS = {
     "aliyah": {
         "apps": [("Manifest Lock", "manifest-lock"), ("Journal Lock", "journal-lock")],
     },
-    "olivia": {
-        "apps": [("Manifest Lock", "manifest-lock")],
-        "video_type": "olivia_default",
-    },
     "riley": {
         "apps": [("Manifest Lock", "manifest-lock"), ("Journal Lock", "journal-lock")],
         "video_type": "riley_default",
@@ -184,22 +180,6 @@ ACTION AND CAMERA MOTION:
 Keep the same outdoor background throughout. Keep lighting consistent. Keep motion natural and realistic.
 
 STYLE — Naturalistic aesthetic with sharp 4K clarity, vibrant colors. No text overlays or subtitles.""",
-    "olivia_default": """No subtitles. No captions. No music.
-
-The woman in the image must look EXACTLY as she appears — same face, same hair, same clothing, same everything. Do not change anything.
-
-SHOT — Vertical 9:16, medium close-up from waist up. Slow tracking shot following her from the side or slightly behind.
-
-SCENE — Outdoor golden hour, walking along a quiet tree-lined path or park trail. Warm sunlight filtering through leaves. Soft bokeh background.
-
-ACTION AND CAMERA MOTION:
-- 0–1.5s: Walking naturally, calm expression, looking slightly ahead. Hair moves softly with the breeze.
-- 1.5–3.0s: Slight turn toward camera, subtle confident smile, keeps walking.
-- 3.0–4.0s: Looks forward again, peaceful and grounded. Camera holds steady tracking shot.
-
-No talking. No exaggerated expressions. Calm confidence, quiet purpose.
-
-STYLE — Cinematic 4K vertical video. Golden hour color palette, warm amber tones, natural lighting. No text overlays, subtitles, or captions.""",
     "riley_default": """No subtitles. No captions. No music.
 
 The woman in the image must look EXACTLY as she appears — same face, same hair, same clothing, same everything. Do not change anything.
@@ -232,10 +212,6 @@ CLIP_SPLIT_POINTS = {
         "hook": {"start": 0, "duration": 2.2},
         "reaction": {"start": 2.2, "duration": 1.8},
     },
-    "olivia_default": {
-        "hook": {"start": 0, "duration": 4},
-        "reaction": None,
-    },
     "riley_default": {
         "hook": {"start": 0, "duration": 2.5},
         "reaction": {"start": 2, "duration": 2},
@@ -256,7 +232,7 @@ def pick_reference_image(persona_name, video_type="original"):
     - ugc_lighting: Single file {persona}-ugc.{png,jpeg,jpg}
     - outdoor: Single file {persona}-outdoor.{png,jpeg,jpg}
     """
-    if video_type in ("original", "olivia_default", "riley_default"):
+    if video_type in ("original", "riley_default"):
         variants = sorted(
             f for f in REF_IMAGES_DIR.iterdir()
             if f.is_file() and f.name.startswith(f"{persona_name}-v") and f.suffix.lower() in (".png", ".jpg", ".jpeg")
@@ -439,7 +415,7 @@ def generate_clips(persona_name, video_type="original", ref_image=None, engine="
     subprocess.run(hook_cmd, capture_output=True)
     log.info(f"  Hook clip: {hook_path.name} ({hook_split['duration']}s)")
 
-    # Reaction clip (optional — None for hook-only formats like olivia_default)
+    # Reaction clip (optional — None for hook-only formats)
     react_split = splits["reaction"]
     reaction_path = None
     if react_split is not None:
@@ -515,35 +491,7 @@ def generate_text(context, persona_name, app_name):
         "Journal Lock": "an iOS app that makes you journal before unlocking your phone. It replaces doomscrolling with daily self-reflection and emotional check-ins.",
     }
 
-    # Olivia uses a hook-only format (no reaction clip)
-    if persona_name == "olivia":
-        system = f"""You are the {app_name} content engine. You generate short text overlays for UGC-style TikTok/Instagram Reels.
-
-The app: {app_name} is {APP_DESCRIPTIONS[app_name]}
-
-The video format (hook + screen recording only, NO reaction clip):
-- Part 1 (hook clip): Woman walking outdoors at golden hour, calm confidence. YOUR hook text appears below her.
-- Part 2 (screen recording): App demo plays. No text overlay.
-
-Olivia's voice: Anti-woo. Zero fluff. "Wrote it down, did the work, it happened." Low words, high proof. She doesn't convince — she states. Calm, grounded, matter-of-fact.
-
-Rules:
-- hook_text: First-person statement or quiet flex. Max 50 characters. Understated confidence, not hype.
-- Voice: Millennial woman, direct, no filler, no emojis in overlays
-- Never mention the app name in text overlays
-- Every hook implies proof without explaining it
-- Vary angles: quiet result, daily ritual, undeniable proof, calm flex
-
-Also generate a caption (first-person, minimal, soft CTA, max 5 hashtags).
-
-Respond ONLY with valid JSON, no markdown fences:
-{{
-  "hook_text": "...",
-  "caption": "...",
-  "content_angle": "quiet_result|daily_ritual|proof|calm_flex"
-}}"""
-    else:
-        system = f"""You are the {app_name} content engine. You generate short text overlays for UGC-style TikTok/Instagram Reels.
+    system = f"""You are the {app_name} content engine. You generate short text overlays for UGC-style TikTok/Instagram Reels.
 
 The app: {app_name} is {APP_DESCRIPTIONS[app_name]}
 
@@ -879,7 +827,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Video autopilot for ManifestLock + JournalLock")
     parser.add_argument("--persona", required=True,
                         help="sanya, sophie, aliyah, both, all, or comma-separated list (e.g. sanya,aliyah)")
-    parser.add_argument("--video-type", choices=["original", "ugc_lighting", "outdoor", "olivia_default", "riley_default"],
+    parser.add_argument("--video-type", choices=["original", "ugc_lighting", "outdoor", "riley_default"],
                         help="Override daily rotation with a specific video type")
     parser.add_argument("--dry-run", action="store_true", help="Plan only, skip generation")
     parser.add_argument("--no-upload", action="store_true", help="Build but skip Drive upload")
@@ -893,11 +841,11 @@ if __name__ == "__main__":
     # Resolve video type: CLI override or daily rotation
     video_type = args.video_type  # None means pick_video_type() will be called in run_persona
 
-    valid_personas = {"sanya", "sophie", "aliyah", "olivia", "riley"}
+    valid_personas = {"sanya", "sophie", "aliyah", "riley"}
     if args.persona == "both":
         personas = ["sanya", "sophie"]
     elif args.persona == "all":
-        personas = ["sanya", "sophie", "aliyah", "olivia", "riley"]
+        personas = ["sanya", "sophie", "aliyah", "riley"]
     elif "," in args.persona:
         personas = [p.strip() for p in args.persona.split(",") if p.strip()]
         bad = [p for p in personas if p not in valid_personas]

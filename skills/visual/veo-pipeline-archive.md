@@ -52,8 +52,8 @@ python3 scripts/autopilot_video.py \
 ```
 
 Arguments:
-- `--persona`: sanya, sophie, aliyah, olivia, riley, both, all, or comma-separated
-- `--video-type`: original, ugc_lighting, outdoor, olivia_default, riley_default
+- `--persona`: sanya, sophie, aliyah, riley, both, all, or comma-separated
+- `--video-type`: original, ugc_lighting, outdoor, riley_default
 - `--engine`: veo (default), seedance
 - `--dry-run`: Plan only, skip generation
 - `--no-upload`: Build reel but skip Google Drive upload
@@ -79,7 +79,7 @@ Scene presets controlled the video prompt while keeping the subject (persona) lo
 - **original** — Default indoor/bedroom setting
 - **ugc_lighting** — Studio ring-light look (retired: 100-130 views)
 - **outdoor** — Park/nature setting (retired: 100-130 views)
-- **olivia_default** / **riley_default** — Persona-specific defaults
+- **riley_default** — Persona-specific default
 
 ## Environment Variables Required
 

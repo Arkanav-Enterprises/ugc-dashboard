@@ -208,16 +208,39 @@ Return ONLY valid JSON:
 }"""
 
 
-def generate_text(context: str) -> dict:
-    """Call Claude to generate text overlays."""
+def generate_text(context: str, recent_entries: list[dict]) -> dict:
+    """Call Claude to generate text overlays, avoiding recent outputs."""
     import anthropic
+
+    # Build avoidance context from recent runs
+    avoid_block = ""
+    recent_texts = recent_entries[-6:]  # last 6 runs
+    if recent_texts:
+        lines = []
+        for e in recent_texts:
+            s1 = e.get("scene_1_text", "")
+            s2 = e.get("scene_2_text", "")
+            angle = e.get("content_angle", "")
+            if s1:
+                lines.append(f"- [{angle}] \"{s1}\" / \"{s2}\"")
+        if lines:
+            avoid_block = (
+                "\n\nIMPORTANT — These hooks were used in recent reels. "
+                "Do NOT repeat or closely paraphrase any of them. "
+                "Pick a DIFFERENT angle and scenario:\n"
+                + "\n".join(lines)
+            )
+
+    # Pick a random angle to steer diversity
+    angle = random.choice(["relatable", "discovery", "challenge", "transformation", "dialogue"])
+    angle_hint = f"\n\nFor THIS reel, use the \"{angle}\" angle."
 
     client = anthropic.Anthropic()
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=400,
         system=f"You are the content engine for a lifestyle reel pipeline. Follow the rules in these skill files:\n\n{context}",
-        messages=[{"role": "user", "content": USER_PROMPT}],
+        messages=[{"role": "user", "content": USER_PROMPT + avoid_block + angle_hint}],
     )
 
     raw = response.content[0].text.strip()
@@ -434,7 +457,7 @@ def main():
     else:
         print("\n  Generating text via Claude...")
         context = load_skill_context()
-        content = generate_text(context)
+        content = generate_text(context, recent)
 
     print(f"  Scene 1: {content['scene_1_text']}")
     print(f"  Scene 2: {content['scene_2_text']}")
