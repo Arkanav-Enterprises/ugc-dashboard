@@ -568,15 +568,41 @@ def run_account(account: str, category_override: str | None = None,
     print(f"  Category: {category} ({CATEGORIES[category]['name']})")
 
     if text_override and text_override.get("pov_text"):
-        # Use provided text — skip Claude generation
+        # Use provided text — generate only caption + hashtags via Claude
+        import anthropic
+
+        pov = text_override["pov_text"]
+        reaction = text_override.get("reaction_text", "")
+        print(f"  Using provided text — generating caption...")
+
+        client = anthropic.Anthropic()
+        caption_resp = client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=300,
+            system="You write Instagram/TikTok captions for screen time wellness apps. "
+                   "Never mention the app by name. Keep it authentic, first-person, casual.",
+            messages=[{"role": "user", "content": (
+                f"Write a short Instagram caption (2-3 lines) and 5 hashtags for a reel with:\n"
+                f"Hook: \"{pov}\"\n"
+                f"{'Reaction: \"' + reaction + '\"' if reaction else ''}\n"
+                f"Account: {cfg['handle']} (persona: {cfg['persona']}, app: {cfg['app']})\n\n"
+                f"Reply with ONLY this JSON (no markdown fencing):\n"
+                f'{{"caption": "the caption text", "hashtags": "#tag1 #tag2 #tag3 #tag4 #tag5"}}'
+            )}],
+        )
+        try:
+            caption_data = json.loads(caption_resp.content[0].text.strip())
+        except (json.JSONDecodeError, IndexError):
+            caption_data = {"caption": "", "hashtags": ""}
+
         content = {
-            "pov_text": text_override["pov_text"],
-            "reaction_text": text_override.get("reaction_text", ""),
+            "pov_text": pov,
+            "reaction_text": reaction,
             "suggested_screen_recording": "any",
-            "caption": "",
-            "hashtags": "",
+            "caption": caption_data.get("caption", ""),
+            "hashtags": caption_data.get("hashtags", ""),
         }
-        print(f"  Using provided text (skipping Claude)")
+        print(f"  Caption: {content['caption'][:80]}...")
     else:
         # 2. Load skill graph context
         print("  Loading skill graph...")
