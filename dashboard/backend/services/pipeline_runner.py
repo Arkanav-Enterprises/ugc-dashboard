@@ -72,6 +72,10 @@ def start_pipeline_run(req: PipelineRunRequest) -> PipelineRunStatus:
         cmd.append("--no-reaction")
     if req.idea_only:
         cmd.append("--idea-only")
+    if req.hook_text:
+        cmd += ["--hook-text", req.hook_text]
+    if req.reaction_text:
+        cmd += ["--reaction-text", req.reaction_text]
 
     # Derive persona from account name for display
     persona = req.account.split(".")[0] if "." in req.account else req.account

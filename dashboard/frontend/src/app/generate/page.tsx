@@ -53,6 +53,8 @@ export default function GenerateContentPage() {
   const [noUpload, setNoUpload] = useState(false);
   const [noReaction, setNoReaction] = useState(false);
   const [ideaOnly, setIdeaOnly] = useState(false);
+  const [hookText, setHookText] = useState("");
+  const [reactionText, setReactionText] = useState("");
   const [launching, setLaunching] = useState(false);
   const [runs, setRuns] = useState<TrackedRun[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -121,6 +123,8 @@ export default function GenerateContentPage() {
         no_upload: noUpload,
         no_reaction: noReaction,
         idea_only: ideaOnly,
+        hook_text: hookText.trim() || undefined,
+        reaction_text: reactionText.trim() || undefined,
       }).then(
         (status): TrackedRun => ({
           ...status,
@@ -422,6 +426,38 @@ export default function GenerateContentPage() {
           <p className="mt-3 text-xs text-muted-foreground">
             ~$0.01 per reel (Claude API only — no video generation costs)
           </p>
+        </CardContent>
+      </Card>
+
+      {/* Text overrides */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-medium">
+            Text Override
+            <span className="ml-2 font-normal text-xs text-muted-foreground">Optional — skips Claude generation when filled</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Hook Text (Part 1 overlay)</label>
+            <textarea
+              value={hookText}
+              onChange={(e) => setHookText(e.target.value)}
+              placeholder='e.g. "POV: you deleted Instagram and this happened"'
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50 resize-none"
+              rows={2}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Reaction Text (Part 3 overlay)</label>
+            <textarea
+              value={reactionText}
+              onChange={(e) => setReactionText(e.target.value)}
+              placeholder='e.g. "I feel so much calmer now"'
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50 resize-none"
+              rows={2}
+            />
+          </div>
         </CardContent>
       </Card>
 

@@ -555,7 +555,8 @@ Suggested type: {content.get('suggested_screen_recording', 'any')}
 
 def run_account(account: str, category_override: str | None = None,
                 dry_run: bool = False, idea_only: bool = False,
-                no_upload: bool = False, no_reaction: bool = False):
+                no_upload: bool = False, no_reaction: bool = False,
+                text_override: dict | None = None):
     """Generate content for one account."""
     cfg = ACCOUNTS[account]
     print(f"\n{'='*60}")
@@ -566,41 +567,52 @@ def run_account(account: str, category_override: str | None = None,
     category = pick_category(category_override)
     print(f"  Category: {category} ({CATEGORIES[category]['name']})")
 
-    # 2. Load skill graph context
-    print("  Loading skill graph...")
-    context = load_context_for_account(account)
+    if text_override and text_override.get("pov_text"):
+        # Use provided text — skip Claude generation
+        content = {
+            "pov_text": text_override["pov_text"],
+            "reaction_text": text_override.get("reaction_text", ""),
+            "suggested_screen_recording": "any",
+            "caption": "",
+            "hashtags": "",
+        }
+        print(f"  Using provided text (skipping Claude)")
+    else:
+        # 2. Load skill graph context
+        print("  Loading skill graph...")
+        context = load_context_for_account(account)
 
-    # 3. Check dedup (personas with two accounts must not duplicate hooks)
-    dedup_hooks = []
-    dedup_pairs = {
-        "sanyahealing": "sophie.unplugs",
-        "sophie.unplugs": "sanyahealing",
-        "aliyah.journals": "aliyah.manifests",
-        "aliyah.manifests": "aliyah.journals",
-        "riley.journals": "riley.manifests",
-        "riley.manifests": "riley.journals",
-    }
-    if account in dedup_pairs:
-        sibling = dedup_pairs[account]
-        sibling_output = load_today_output(sibling)
-        if sibling_output:
-            dedup_hooks = [sibling_output["content"]["pov_text"]]
-            print(f"  Dedup: avoiding hook from @{sibling}")
+        # 3. Check dedup (personas with two accounts must not duplicate hooks)
+        dedup_hooks = []
+        dedup_pairs = {
+            "sanyahealing": "sophie.unplugs",
+            "sophie.unplugs": "sanyahealing",
+            "aliyah.journals": "aliyah.manifests",
+            "aliyah.manifests": "aliyah.journals",
+            "riley.journals": "riley.manifests",
+            "riley.manifests": "riley.journals",
+        }
+        if account in dedup_pairs:
+            sibling = dedup_pairs[account]
+            sibling_output = load_today_output(sibling)
+            if sibling_output:
+                dedup_hooks = [sibling_output["content"]["pov_text"]]
+                print(f"  Dedup: avoiding hook from @{sibling}")
 
-    # 4. Generate text via Anthropic
-    print("  Calling Anthropic API...")
-    try:
-        content = generate_content(account, category, context, dedup_hooks)
-    except Exception as e:
-        print(f"  ERROR generating content: {e}")
-        # Retry once on transient errors (529s)
-        if "529" in str(e) or "overloaded" in str(e).lower():
-            print("  Retrying in 30s (server overload)...")
-            import time
-            time.sleep(30)
+        # 4. Generate text via Anthropic
+        print("  Calling Anthropic API...")
+        try:
             content = generate_content(account, category, context, dedup_hooks)
-        else:
-            raise
+        except Exception as e:
+            print(f"  ERROR generating content: {e}")
+            # Retry once on transient errors (529s)
+            if "529" in str(e) or "overloaded" in str(e).lower():
+                print("  Retrying in 30s (server overload)...")
+                import time
+                time.sleep(30)
+                content = generate_content(account, category, context, dedup_hooks)
+            else:
+                raise
 
     print(f"  POV: {content['pov_text']}")
     print(f"  Reaction: {content['reaction_text']}")
@@ -667,13 +679,24 @@ def main():
                         help="Assemble reel but skip Google Drive upload")
     parser.add_argument("--no-reaction", action="store_true",
                         help="Skip reaction clip in video assembly (hook + screen only)")
+    parser.add_argument("--hook-text",
+                        help="Override hook/POV text (skip Claude generation)")
+    parser.add_argument("--reaction-text",
+                        help="Override reaction text (skip Claude generation)")
     args = parser.parse_args()
 
     accounts = [args.account] if args.account else list(ACCOUNTS.keys())
 
+    text_override = None
+    if args.hook_text or args.reaction_text:
+        text_override = {
+            "pov_text": args.hook_text or "",
+            "reaction_text": args.reaction_text or "",
+        }
+
     for account in accounts:
         run_account(account, args.category, args.dry_run, args.idea_only,
-                    args.no_upload, args.no_reaction)
+                    args.no_upload, args.no_reaction, text_override=text_override)
 
     print(f"\nAll done. {len(accounts)} account(s) processed.")
 

@@ -292,6 +292,8 @@ export interface PipelineRunRequest {
   no_upload?: boolean;
   no_reaction?: boolean;
   idea_only?: boolean;
+  hook_text?: string;
+  reaction_text?: string;
 }
 
 export interface PipelineRunStatus {
