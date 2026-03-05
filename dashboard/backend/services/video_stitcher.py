@@ -1,5 +1,6 @@
 """Video stitcher — FFmpeg scene processing + concatenation with async job queue."""
 
+import os
 import queue
 import shutil
 import subprocess
@@ -11,6 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from config import VIDEO_OUTPUT_DIR
+
+GDRIVE_FOLDER = "manifest-social-videos"
 
 # ─── Config ──────────────────────────────────────────
 
@@ -251,6 +254,15 @@ def _run_stitch(job_id, scenes, upload_dir):
 
     size_mb = out_path.stat().st_size / (1024 * 1024)
     sync_log(f"\nDone! Output: {out_filename} ({size_mb:.1f} MB)")
+
+    # Upload to Google Drive via rclone
+    sync_log(f"\nUploading to Google Drive ({GDRIVE_FOLDER})...")
+    rc = os.system(f"rclone copy {out_path} gdrive:{GDRIVE_FOLDER}/")
+    if rc == 0:
+        sync_log(f"Uploaded to Google Drive.")
+    else:
+        sync_log(f"WARNING: Drive upload failed (exit code {rc}). Video saved locally.")
+
     job["status"] = "completed"
     job["result_filename"] = out_filename
 
