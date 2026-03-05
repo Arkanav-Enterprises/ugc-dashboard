@@ -137,6 +137,7 @@ async def generate_prompt(
     prompt_type: str = "image",
     mode: str = "existing_character",
     reference_image_base64: str | None = None,
+    reference_image_media_type: str = "image/png",
 ) -> dict:
     """Generate an image or video prompt via Claude."""
 
@@ -149,7 +150,7 @@ async def generate_prompt(
             "type": "image",
             "source": {
                 "type": "base64",
-                "media_type": "image/png",
+                "media_type": reference_image_media_type,
                 "data": reference_image_base64,
             },
         })
@@ -185,7 +186,9 @@ Generate the JSON prompt now."""
                 "messages": [{"role": "user", "content": user_content}],
             },
         )
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            error_body = resp.text
+            raise RuntimeError(f"Claude API error {resp.status_code}: {error_body}")
         data = resp.json()
 
     raw_text = ""

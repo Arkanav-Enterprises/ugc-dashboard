@@ -45,6 +45,7 @@ export default function PromptGenerator({ onUseAsScene }: PromptGeneratorProps) 
   const [sceneDesc, setSceneDesc] = useState("");
   const [refImage, setRefImage] = useState<string | null>(null);
   const [refImageName, setRefImageName] = useState<string | null>(null);
+  const [refImageType, setRefImageType] = useState<string>("image/png");
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<PromptResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,10 +58,10 @@ export default function PromptGenerator({ onUseAsScene }: PromptGeneratorProps) 
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result as string;
-      // Strip the data:image/...;base64, prefix
       const base64 = dataUrl.split(",")[1];
       setRefImage(base64);
       setRefImageName(file.name);
+      setRefImageType(file.type || "image/png");
     };
     reader.readAsDataURL(file);
   };
@@ -78,6 +79,7 @@ export default function PromptGenerator({ onUseAsScene }: PromptGeneratorProps) 
         prompt_type: promptType,
         mode,
         reference_image_base64: refImage || undefined,
+        reference_image_media_type: refImage ? refImageType : undefined,
       });
       setResult(resp);
     } catch (err) {

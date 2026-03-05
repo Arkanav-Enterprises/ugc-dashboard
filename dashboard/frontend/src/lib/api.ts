@@ -346,6 +346,7 @@ export interface PromptRequest {
   prompt_type: "image" | "video";
   mode: "new_character" | "existing_character" | "mood_reference";
   reference_image_base64?: string;
+  reference_image_media_type?: string;
 }
 
 export interface PromptResponse {

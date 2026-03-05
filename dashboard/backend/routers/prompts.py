@@ -14,6 +14,7 @@ class PromptRequest(BaseModel):
     prompt_type: str = "image"
     mode: str = "existing_character"
     reference_image_base64: str | None = None
+    reference_image_media_type: str = "image/png"
 
 
 class PromptResponse(BaseModel):
@@ -43,13 +44,17 @@ async def generate(req: PromptRequest):
     if req.mode not in ("new_character", "existing_character", "mood_reference"):
         raise HTTPException(400, "mode must be 'new_character', 'existing_character', or 'mood_reference'")
 
-    prompt_json = await generate_prompt(
-        persona=req.persona,
-        scene_description=req.scene_description,
-        prompt_type=req.prompt_type,
-        mode=req.mode,
-        reference_image_base64=req.reference_image_base64,
-    )
+    try:
+        prompt_json = await generate_prompt(
+            persona=req.persona,
+            scene_description=req.scene_description,
+            prompt_type=req.prompt_type,
+            mode=req.mode,
+            reference_image_base64=req.reference_image_base64,
+            reference_image_media_type=req.reference_image_media_type,
+        )
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
     return PromptResponse(
         prompt_json=prompt_json,
