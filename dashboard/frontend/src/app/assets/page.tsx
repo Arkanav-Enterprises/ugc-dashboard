@@ -5,12 +5,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trash2, Upload, Loader2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
+import { Trash2, Upload, Loader2, Play } from "lucide-react";
 import {
   getReferenceImages,
   getClips,
   getAssetUsage,
   assetUrl,
+  thumbnailUrl,
   uploadClip,
   uploadReaction,
   deleteClip,
@@ -43,6 +48,10 @@ export default function AssetManagerPage() {
   const [reactionMode, setReactionMode] = useState<"upload" | "auto" | null>(null);
   const [reactionFile, setReactionFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState("");
+
+  // Filter + preview state
+  const [personaFilter, setPersonaFilter] = useState("all");
+  const [previewClip, setPreviewClip] = useState<AssetInfo | null>(null);
 
   // Delete state
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -129,6 +138,10 @@ export default function AssetManagerPage() {
     }
   }
 
+  const filteredClips = personaFilter === "all"
+    ? clips
+    : clips.filter((c) => c.persona === personaFilter);
+
   const canSubmitUpload =
     hookFile && selectedPersona && clipName && (reactionMode === "auto" || (reactionMode === "upload" && reactionFile));
 
@@ -186,12 +199,30 @@ export default function AssetManagerPage() {
         </TabsContent>
 
         <TabsContent value="clips" className="mt-4 space-y-4">
-          {/* Upload button / form */}
-          {!showUpload ? (
-            <Button onClick={() => setShowUpload(true)} size="sm" className="gap-2">
-              <Upload className="h-4 w-4" /> Upload Clip
-            </Button>
-          ) : (
+          {/* Toolbar: filter + upload */}
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex gap-1 flex-wrap">
+              {["all", ...PERSONAS].map((p) => (
+                <Button
+                  key={p}
+                  variant={personaFilter === p ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setPersonaFilter(p)}
+                  className="capitalize"
+                >
+                  {p}{p !== "all" ? ` (${clips.filter((c) => c.persona === p).length})` : ""}
+                </Button>
+              ))}
+            </div>
+            {!showUpload && (
+              <Button onClick={() => setShowUpload(true)} size="sm" className="gap-2">
+                <Upload className="h-4 w-4" /> Upload Clip
+              </Button>
+            )}
+          </div>
+
+          {/* Upload form */}
+          {showUpload && (
             <Card>
               <CardContent className="pt-4 space-y-4">
                 <div className="flex items-center justify-between">
@@ -199,7 +230,6 @@ export default function AssetManagerPage() {
                   <Button variant="ghost" size="sm" onClick={resetUpload}>Cancel</Button>
                 </div>
 
-                {/* Step 1: Persona */}
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">Persona</label>
                   <div className="flex gap-2">
@@ -222,7 +252,6 @@ export default function AssetManagerPage() {
                   </div>
                 </div>
 
-                {/* Step 2: Hook file */}
                 {selectedPersona && (
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Hook Video</label>
@@ -253,7 +282,6 @@ export default function AssetManagerPage() {
                   </div>
                 )}
 
-                {/* Step 3: Reaction */}
                 {hookFile && (
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Reaction Clip</label>
@@ -297,7 +325,6 @@ export default function AssetManagerPage() {
                   <p className="text-sm text-destructive">{uploadError}</p>
                 )}
 
-                {/* Submit */}
                 <Button
                   onClick={handleUploadSubmit}
                   disabled={!canSubmitUpload || uploadStep === "uploading"}
@@ -315,67 +342,96 @@ export default function AssetManagerPage() {
             </Card>
           )}
 
-          {/* Clip grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {clips.map((clip) => (
+          {/* Clip grid — thumbnails, not video elements */}
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {filteredClips.map((clip) => (
               <Card key={clip.path} className="relative group">
-                <CardContent className="pt-3 space-y-2">
-                  <video
-                    src={assetUrl(clip.path)}
-                    className="w-full aspect-[9/16] object-cover rounded-md bg-black"
-                    controls
-                    muted
-                    preload="metadata"
-                  />
+                <CardContent className="pt-2 pb-2 px-2 space-y-1.5">
+                  <div
+                    className="aspect-[9/16] bg-muted rounded-md overflow-hidden relative cursor-pointer"
+                    onClick={() => setPreviewClip(clip)}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={thumbnailUrl(clip.path)}
+                      alt={clip.name}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Play className="h-6 w-6 text-white" />
+                    </div>
+                  </div>
                   <div className="flex items-center gap-1 flex-wrap">
-                    {clip.persona && (
-                      <Badge
-                        variant="outline"
-                        className="text-xs"
-                        style={{
-                          borderColor: PERSONA_COLORS[clip.persona],
-                          color: PERSONA_COLORS[clip.persona],
-                        }}
-                      >
-                        {clip.persona}
-                      </Badge>
-                    )}
                     {clip.type && (
-                      <Badge variant="secondary" className="text-xs">
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                         {clip.type}
                       </Badge>
                     )}
-                    {/* Pairing indicator */}
                     {clip.type && (
                       <Badge
                         variant="outline"
-                        className={`text-[10px] ${pairedSet.has(clip.path) ? "text-emerald-500 border-emerald-500" : "text-amber-500 border-amber-500"}`}
+                        className={`text-[10px] px-1.5 py-0 ${pairedSet.has(clip.path) ? "text-emerald-500 border-emerald-500" : "text-amber-500 border-amber-500"}`}
                       >
-                        {clip.type === "hook" ? "reaction" : "hook"}:{" "}
-                        {pairedSet.has(clip.path) ? "paired" : "missing"}
+                        {pairedSet.has(clip.path) ? "paired" : "unpaired"}
                       </Badge>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground truncate">
+                  <p className="text-[11px] text-muted-foreground truncate">
                     {clip.name}
                   </p>
                 </CardContent>
-                {/* Delete button */}
                 <button
-                  onClick={() => handleDelete(clip)}
+                  onClick={(e) => { e.stopPropagation(); handleDelete(clip); }}
                   disabled={deleting === clip.path}
-                  className="absolute top-2 right-2 p-1.5 rounded-md bg-background/80 border opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground"
+                  className="absolute top-1 right-1 p-1 rounded bg-background/80 border opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground"
                   title="Delete clip"
                 >
                   {deleting === clip.path ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <Loader2 className="h-3 w-3 animate-spin" />
                   ) : (
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-3 w-3" />
                   )}
                 </button>
               </Card>
             ))}
           </div>
+
+          {/* Video preview dialog */}
+          <Dialog open={!!previewClip} onOpenChange={() => setPreviewClip(null)}>
+            <DialogContent className="max-w-md p-2">
+              {previewClip && (
+                <div className="space-y-2">
+                  <video
+                    src={assetUrl(previewClip.path)}
+                    controls
+                    autoPlay
+                    className="w-full rounded-md bg-black"
+                  />
+                  <div className="flex items-center gap-2 px-1">
+                    {previewClip.persona && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs"
+                        style={{
+                          borderColor: PERSONA_COLORS[previewClip.persona],
+                          color: PERSONA_COLORS[previewClip.persona],
+                        }}
+                      >
+                        {previewClip.persona}
+                      </Badge>
+                    )}
+                    {previewClip.type && (
+                      <Badge variant="secondary" className="text-xs">
+                        {previewClip.type}
+                      </Badge>
+                    )}
+                    <span className="text-xs text-muted-foreground">{previewClip.name}</span>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         <TabsContent value="usage" className="mt-4">

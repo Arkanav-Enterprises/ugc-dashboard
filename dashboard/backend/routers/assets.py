@@ -11,6 +11,8 @@ from config import ASSETS_DIR, REF_IMAGES_DIR, MEMORY_DIR, PERSONAS, PROJECT_ROO
 
 router = APIRouter(prefix="/api/assets", tags=["assets"])
 
+THUMBS_DIR = ASSETS_DIR / ".thumbs"
+
 
 @router.get("/reference-images")
 def list_reference_images():
@@ -106,6 +108,34 @@ def serve_asset(file_path: str):
     }
     media_type = media_types.get(full_path.suffix.lower(), "application/octet-stream")
     return FileResponse(full_path, media_type=media_type)
+
+
+@router.get("/thumbnail/{file_path:path}")
+async def serve_thumbnail(file_path: str):
+    """Serve a cached JPEG thumbnail for a video clip (first frame)."""
+    video_path = ASSETS_DIR / file_path
+    if not video_path.exists() or not video_path.is_file():
+        raise HTTPException(status_code=404, detail="Asset not found")
+    try:
+        video_path.resolve().relative_to(ASSETS_DIR.resolve())
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Cache path mirrors the video path but with .jpg extension
+    thumb_path = THUMBS_DIR / (file_path + ".jpg")
+    if not thumb_path.exists():
+        thumb_path.parent.mkdir(parents=True, exist_ok=True)
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-y", "-i", str(video_path),
+            "-vframes", "1", "-q:v", "8", "-vf", "scale=320:-2",
+            str(thumb_path),
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        await proc.communicate()
+        if proc.returncode != 0 or not thumb_path.exists():
+            raise HTTPException(status_code=500, detail="Thumbnail generation failed")
+
+    return FileResponse(thumb_path, media_type="image/jpeg")
 
 
 def _validate_persona(persona: str):

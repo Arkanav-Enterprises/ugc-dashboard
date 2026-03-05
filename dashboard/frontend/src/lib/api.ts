@@ -43,6 +43,10 @@ export function assetUrl(path: string) {
   return `${API_BASE}/api/assets/file/${path}`;
 }
 
+export function thumbnailUrl(path: string) {
+  return `${API_BASE}/api/assets/thumbnail/${path}`;
+}
+
 export async function getKnowledgeTree() {
   return fetchAPI<{ skills: FileNode[]; memory: FileNode[] }>("/api/knowledge/tree");
 }
