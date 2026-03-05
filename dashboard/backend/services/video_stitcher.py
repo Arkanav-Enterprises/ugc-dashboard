@@ -1,19 +1,33 @@
 """Video stitcher — FFmpeg scene processing + concatenation with async job queue."""
 
+import json
 import os
 import queue
 import shutil
+import smtplib
 import subprocess
 import sys
 import tempfile
 import threading
 import uuid
 from datetime import datetime, timezone
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from pathlib import Path
+
+import httpx
 
 from config import VIDEO_OUTPUT_DIR
 
 GDRIVE_FOLDER = "manifest-social-videos"
+
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER", "")
+SMTP_PASS = os.environ.get("SMTP_PASS", "")
+RECIPIENT = os.environ.get("DELIVERY_EMAIL", "")
 
 # ─── Config ──────────────────────────────────────────
 
@@ -169,6 +183,76 @@ def _concatenate(clip_paths, output_path, log_lines):
     return True
 
 
+# ─── Caption + email ─────────────────────────────────
+
+def _generate_caption(scene_texts, log_lines):
+    """Generate an Instagram caption from scene text overlays via Claude."""
+    if not ANTHROPIC_API_KEY:
+        log_lines.append("  SKIP CAPTION: No ANTHROPIC_API_KEY set")
+        return None
+
+    overlays = "\n".join(f"Scene {i+1}: \"{t}\"" for i, t in enumerate(scene_texts) if t)
+    if not overlays:
+        return None
+
+    try:
+        resp = httpx.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": ANTHROPIC_MODEL,
+                "max_tokens": 300,
+                "system": (
+                    "You write Instagram/TikTok captions for screen time wellness apps. "
+                    "Never mention the app by name. Keep it authentic, first-person, casual."
+                ),
+                "messages": [{"role": "user", "content": (
+                    f"Write a short Instagram caption (2-3 lines) and 5 hashtags for a reel "
+                    f"with these text overlays:\n{overlays}\n\n"
+                    f"Reply with ONLY this JSON (no markdown fencing):\n"
+                    f'{{"caption": "the caption text", "hashtags": "#tag1 #tag2 #tag3 #tag4 #tag5"}}'
+                )}],
+            },
+            timeout=20,
+        )
+        raw = resp.json()["content"][0]["text"].strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
+        if raw.endswith("```"):
+            raw = raw[:-3]
+        return json.loads(raw.strip())
+    except Exception as e:
+        log_lines.append(f"  Caption generation error: {e}")
+        return None
+
+
+def _send_email(subject, body, log_lines):
+    """Send delivery email. Fails gracefully."""
+    if not all([SMTP_USER, SMTP_PASS, RECIPIENT]):
+        log_lines.append("  SKIP EMAIL: Set SMTP_USER, SMTP_PASS, DELIVERY_EMAIL env vars")
+        return
+
+    recipients = [r.strip() for r in RECIPIENT.split(",") if r.strip()]
+    msg = MIMEMultipart()
+    msg["From"] = SMTP_USER
+    msg["To"] = ", ".join(recipients)
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body, "plain"))
+
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
+            server.sendmail(SMTP_USER, recipients, msg.as_string())
+        log_lines.append(f"  Email sent to {', '.join(recipients)}")
+    except Exception as e:
+        log_lines.append(f"  EMAIL ERROR: {e}")
+
+
 # ─── Job queue (same pattern as pipeline_runner.py) ──
 
 _jobs: dict[str, dict] = {}
@@ -262,6 +346,29 @@ def _run_stitch(job_id, scenes, upload_dir):
         sync_log(f"Uploaded to Google Drive.")
     else:
         sync_log(f"WARNING: Drive upload failed (exit code {rc}). Video saved locally.")
+
+    # Generate caption from text overlays and email it
+    scene_texts = [s.get("text", "") for s in scenes]
+    if any(t.strip() for t in scene_texts):
+        sync_log(f"\nGenerating caption...")
+        caption_data = _generate_caption(scene_texts, log_lines)
+        job["output"] = "\n".join(log_lines)
+
+        if caption_data:
+            caption = caption_data.get("caption", "")
+            hashtags = caption_data.get("hashtags", "")
+            sync_log(f"  Caption: {caption}")
+            sync_log(f"  Hashtags: {hashtags}")
+
+            email_body = (
+                f"New stitched reel ready: {out_filename}\n"
+                f"Google Drive: {GDRIVE_FOLDER}/\n\n"
+                f"--- TEXT OVERLAYS ---\n"
+                + "\n".join(f"Scene {i+1}: {t}" for i, t in enumerate(scene_texts) if t.strip())
+                + f"\n\n--- CAPTION ---\n{caption}\n\n{hashtags}"
+            )
+            _send_email(f"Stitch Ready — {out_filename}", email_body, log_lines)
+            job["output"] = "\n".join(log_lines)
 
     job["status"] = "completed"
     job["result_filename"] = out_filename
