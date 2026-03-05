@@ -333,6 +333,40 @@ export interface ScheduleUpdateRequest {
   accounts?: Record<string, { enabled?: boolean; time_utc?: string }>;
 }
 
+// ─── Prompt Generator ────────────────────────────────
+
+export interface PromptPersona {
+  app_primary: string;
+  expression_style: string;
+}
+
+export interface PromptRequest {
+  persona: string;
+  scene_description: string;
+  prompt_type: "image" | "video";
+  mode: "new_character" | "existing_character" | "mood_reference";
+  reference_image_base64?: string;
+}
+
+export interface PromptResponse {
+  prompt_json: Record<string, unknown>;
+  persona: string;
+  prompt_type: string;
+  mode: string;
+}
+
+export async function getPromptPersonas(): Promise<Record<string, PromptPersona>> {
+  return fetchAPI<Record<string, PromptPersona>>("/api/prompts/personas");
+}
+
+export async function generatePrompt(req: PromptRequest): Promise<PromptResponse> {
+  return fetchAPI<PromptResponse>("/api/prompts/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+}
+
 // ─── Video Stitcher ─────────────────────────────────
 
 export interface StitchJobResponse {

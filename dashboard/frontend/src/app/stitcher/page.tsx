@@ -18,6 +18,7 @@ import {
   stitchDownloadUrl,
   type StitchJobStatus,
 } from "@/lib/api";
+import PromptGenerator from "@/components/prompt-generator";
 
 interface Scene {
   id: number;
@@ -41,6 +42,12 @@ export default function StitcherPage() {
   const canStitch = scenes.some((s) => s.file) && !launching;
 
   const addScene = () => setScenes((prev) => [...prev, makeScene()]);
+
+  const addSceneWithText = (text: string) => {
+    const scene = makeScene();
+    scene.text = text;
+    setScenes((prev) => [...prev, scene]);
+  };
 
   const removeScene = (id: number) =>
     setScenes((prev) => prev.filter((s) => s.id !== id));
@@ -126,6 +133,9 @@ export default function StitcherPage() {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Video Stitcher</h2>
+
+      {/* Prompt Generator */}
+      <PromptGenerator onUseAsScene={addSceneWithText} />
 
       {/* Scene cards */}
       <div className="space-y-3">
