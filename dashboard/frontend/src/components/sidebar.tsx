@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  Film,
   Activity,
   Video,
   Calendar,
@@ -27,7 +26,6 @@ import { ThemeToggle } from "./theme-toggle";
 
 const NAV_ITEMS = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
-  { href: "/content", label: "Content Gallery", icon: Film },
   { href: "/pipeline", label: "Pipeline Monitor", icon: Activity },
   { href: "/generate", label: "Generate Content", icon: Video },
   { href: "/stitcher", label: "Video Stitcher", icon: Scissors },

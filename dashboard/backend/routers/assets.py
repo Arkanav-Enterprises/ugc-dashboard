@@ -1,8 +1,10 @@
 """Asset endpoints — reference images, clips, usage history."""
 
+import asyncio
+import shutil
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 
 from config import ASSETS_DIR, REF_IMAGES_DIR, MEMORY_DIR, PERSONAS, PROJECT_ROOT
@@ -104,3 +106,101 @@ def serve_asset(file_path: str):
     }
     media_type = media_types.get(full_path.suffix.lower(), "application/octet-stream")
     return FileResponse(full_path, media_type=media_type)
+
+
+def _validate_persona(persona: str):
+    if persona not in PERSONAS:
+        raise HTTPException(status_code=400, detail=f"Unknown persona: {persona}")
+
+
+def _validate_clip_name(name: str):
+    if not name.lower().endswith((".mp4", ".mov")):
+        raise HTTPException(status_code=400, detail="Filename must end with .mp4 or .mov")
+
+
+@router.post("/upload-clip")
+async def upload_clip(
+    file: UploadFile = File(...),
+    persona: str = Form(...),
+    clip_name: str = Form(...),
+):
+    """Upload a hook clip for a persona."""
+    _validate_persona(persona)
+    _validate_clip_name(clip_name)
+
+    dest_dir = ASSETS_DIR / persona / "hook"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / clip_name
+
+    with open(dest, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    return {"ok": True, "path": f"{persona}/hook/{clip_name}"}
+
+
+@router.post("/upload-reaction")
+async def upload_reaction(
+    file: UploadFile | None = File(None),
+    persona: str = Form(...),
+    clip_name: str = Form(...),
+    auto_generate: bool = Form(False),
+):
+    """Upload a reaction clip, or auto-generate one from the last 2.5s of the matching hook."""
+    _validate_persona(persona)
+    _validate_clip_name(clip_name)
+
+    dest_dir = ASSETS_DIR / persona / "reaction"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / clip_name
+
+    if file is not None:
+        with open(dest, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+    elif auto_generate:
+        hook_path = ASSETS_DIR / persona / "hook" / clip_name
+        if not hook_path.exists():
+            raise HTTPException(status_code=404, detail=f"Hook clip not found: {clip_name}")
+        # Clip last 2.5s — same pattern as assemble_video.py
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-y", "-sseof", "-2.5", "-i", str(hook_path),
+            "-c:v", "libx264", "-c:a", "aac", str(dest),
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise HTTPException(status_code=500, detail=f"FFmpeg failed: {stderr.decode()[-500:]}")
+    else:
+        raise HTTPException(status_code=400, detail="Provide either a file or set auto_generate=true")
+
+    return {"ok": True, "path": f"{persona}/reaction/{clip_name}"}
+
+
+@router.delete("/clip/{persona}/{clip_type}/{filename}")
+async def delete_clip(persona: str, clip_type: str, filename: str):
+    """Delete a clip and its paired counterpart (hook↔reaction)."""
+    if clip_type not in ("hook", "reaction"):
+        raise HTTPException(status_code=400, detail="clip_type must be hook or reaction")
+    _validate_persona(persona)
+
+    target = ASSETS_DIR / persona / clip_type / filename
+    # Path traversal protection
+    try:
+        target.resolve().relative_to(ASSETS_DIR.resolve())
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if not target.exists():
+        raise HTTPException(status_code=404, detail="Clip not found")
+
+    deleted = []
+    target.unlink()
+    deleted.append(f"{persona}/{clip_type}/{filename}")
+
+    # Delete paired clip if it exists
+    paired_type = "reaction" if clip_type == "hook" else "hook"
+    paired = ASSETS_DIR / persona / paired_type / filename
+    if paired.exists():
+        paired.unlink()
+        deleted.append(f"{persona}/{paired_type}/{filename}")
+
+    return {"ok": True, "deleted": deleted}

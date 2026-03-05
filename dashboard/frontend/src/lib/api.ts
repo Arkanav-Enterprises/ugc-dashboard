@@ -76,6 +76,35 @@ export async function getAssetUsage() {
   return fetchAPI<AssetUsageRow[]>("/api/assets/usage");
 }
 
+export async function uploadClip(formData: FormData): Promise<{ ok: boolean; path: string }> {
+  const res = await fetch(`${API_BASE}/api/assets/upload-clip`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
+  return res.json();
+}
+
+export async function uploadReaction(formData: FormData): Promise<{ ok: boolean; path: string }> {
+  const res = await fetch(`${API_BASE}/api/assets/upload-reaction`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
+  return res.json();
+}
+
+export async function deleteClip(
+  persona: string,
+  clipType: string,
+  filename: string
+): Promise<{ ok: boolean; deleted: string[] }> {
+  return fetchAPI<{ ok: boolean; deleted: string[] }>(
+    `/api/assets/clip/${persona}/${clipType}/${encodeURIComponent(filename)}`,
+    { method: "DELETE" }
+  );
+}
+
 export async function getContextFiles() {
   return fetchAPI<{ skills: string[]; memory: string[] }>("/api/chat/context-files");
 }

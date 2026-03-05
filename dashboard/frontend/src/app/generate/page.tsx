@@ -9,6 +9,7 @@ import {
   triggerLifestyleRun,
   triggerAutoJournalRun,
   getPipelineRunStatus,
+  assetUrl,
   type PipelineRunStatus,
 } from "@/lib/api";
 
@@ -37,6 +38,12 @@ const ACCOUNT_COLORS: Record<string, string> = {
 function accountColor(account: string): string {
   const persona = account.split(".")[0];
   return ACCOUNT_COLORS[persona] || ACCOUNT_COLORS[account] || "#6b7280";
+}
+
+function parseClipsUsed(output: string): { hook: string; reaction: string; screen: string } | null {
+  const match = output.match(/Hook: (.+?), Reaction: (.+?), Screen: (.+)/);
+  if (!match) return null;
+  return { hook: match[1].trim(), reaction: match[2].trim(), screen: match[3].trim() };
 }
 
 type PipelineMode = "content" | "lifestyle" | "autojournal";
@@ -541,6 +548,35 @@ export default function GenerateContentPage() {
                       <pre className="pt-3 text-xs whitespace-pre-wrap max-h-64 overflow-auto font-mono text-muted-foreground">
                         {run.output || "Waiting for output..."}
                       </pre>
+                      {run.output && (() => {
+                        const clips = parseClipsUsed(run.output);
+                        if (!clips) return null;
+                        const persona = run.persona;
+                        return (
+                          <div className="pt-2 flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-medium text-muted-foreground">Clips:</span>
+                            <a
+                              href={assetUrl(`${persona}/hook/${clips.hook}`)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-violet-500/10 text-violet-500 border border-violet-500/20 hover:bg-violet-500/20"
+                            >
+                              hook: {clips.hook}
+                            </a>
+                            <a
+                              href={assetUrl(`${persona}/reaction/${clips.reaction}`)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500/20"
+                            >
+                              reaction: {clips.reaction}
+                            </a>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                              screen: {clips.screen}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
