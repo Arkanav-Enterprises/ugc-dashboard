@@ -333,6 +333,37 @@ export interface ScheduleUpdateRequest {
   accounts?: Record<string, { enabled?: boolean; time_utc?: string }>;
 }
 
+// ─── Video Stitcher ─────────────────────────────────
+
+export interface StitchJobResponse {
+  job_id: string;
+  status: string;
+}
+
+export interface StitchJobStatus {
+  id: string;
+  status: string;
+  output: string;
+  result_filename: string | null;
+}
+
+export async function submitStitch(formData: FormData): Promise<StitchJobResponse> {
+  const res = await fetch(`${API_BASE}/api/stitcher/stitch`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
+  return res.json();
+}
+
+export async function getStitchJobStatus(jobId: string): Promise<StitchJobStatus> {
+  return fetchAPI<StitchJobStatus>(`/api/stitcher/job/${jobId}`);
+}
+
+export function stitchDownloadUrl(filename: string): string {
+  return `${API_BASE}/api/stitcher/download/${filename}`;
+}
+
 // ─── YouTube Research ────────────────────────────────
 
 export interface YTVideoInfo {

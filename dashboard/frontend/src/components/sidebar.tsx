@@ -17,6 +17,7 @@ import {
   Mail,
   BarChart3,
   DollarSign,
+  Scissors,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./theme-toggle";
@@ -26,6 +27,7 @@ const NAV_ITEMS = [
   { href: "/content", label: "Content Gallery", icon: Film },
   { href: "/pipeline", label: "Pipeline Monitor", icon: Activity },
   { href: "/generate", label: "Generate Content", icon: Video },
+  { href: "/stitcher", label: "Video Stitcher", icon: Scissors },
   { href: "/schedule", label: "Schedule", icon: Calendar },
   { href: "/research", label: "Trend Research", icon: TrendingUp },
   { href: "/scout", label: "Opportunity Scout", icon: Search },
