@@ -161,10 +161,12 @@ async def generate_prompt(
         "mood_reference": "Generate a Mode 3 (Mood Reference) prompt. Use the attached image for lighting/color/vibe only, create a new character.",
     }
 
+    scene_line = f"Scene: {scene_description}" if scene_description.strip() else "Scene: Infer the scene, pose, and expression from the reference image."
+
     user_text = f"""{mode_instruction.get(mode, '')}
 
 Persona: {persona}
-Scene: {scene_description}
+{scene_line}
 Prompt type: {prompt_type}
 
 Generate the JSON prompt now."""

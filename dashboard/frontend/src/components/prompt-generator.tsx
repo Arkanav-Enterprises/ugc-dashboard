@@ -66,8 +66,10 @@ export default function PromptGenerator({ onUseAsScene }: PromptGeneratorProps) 
     reader.readAsDataURL(file);
   };
 
+  const sceneRequired = mode === "new_character";
+
   const handleGenerate = async () => {
-    if (!sceneDesc.trim()) return;
+    if (sceneRequired && !sceneDesc.trim()) return;
     setGenerating(true);
     setError(null);
     setResult(null);
@@ -232,9 +234,11 @@ export default function PromptGenerator({ onUseAsScene }: PromptGeneratorProps) 
               value={sceneDesc}
               onChange={(e) => setSceneDesc(e.target.value)}
               placeholder={
-                promptType === "image"
-                  ? "In bed at night, looking at phone with worried expression, blue phone glow on face"
-                  : "Worried expression looking at phone, then slowly smiles and puts phone down"
+                sceneRequired
+                  ? promptType === "image"
+                    ? "In bed at night, looking at phone with worried expression, blue phone glow on face"
+                    : "Worried expression looking at phone, then slowly smiles and puts phone down"
+                  : "Optional — leave blank to let Claude infer from the reference image"
               }
               className="w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50 resize-none"
               rows={3}
@@ -244,7 +248,7 @@ export default function PromptGenerator({ onUseAsScene }: PromptGeneratorProps) 
           {/* Generate button */}
           <button
             onClick={handleGenerate}
-            disabled={!sceneDesc.trim() || generating}
+            disabled={(sceneRequired && !sceneDesc.trim()) || generating}
             className="inline-flex items-center gap-2 px-5 py-2 rounded-md bg-primary text-primary-foreground font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
           >
             {generating ? (
