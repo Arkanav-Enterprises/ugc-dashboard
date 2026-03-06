@@ -64,6 +64,8 @@ def start_pipeline_run(req: PipelineRunRequest) -> PipelineRunStatus:
     cmd = [str(PROJECT_VENV_PYTHON), str(SCRIPTS_DIR / "autopilot.py"),
            "--account", req.account]
 
+    if req.angle and req.angle != "auto":
+        cmd += ["--angle", req.angle]
     if req.dry_run:
         cmd.append("--dry-run")
     if req.no_upload:

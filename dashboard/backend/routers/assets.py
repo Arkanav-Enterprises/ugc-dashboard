@@ -38,10 +38,11 @@ def list_reference_images():
 
 @router.get("/clips")
 def list_clips():
-    """List all generated clips by persona and type."""
+    """List all generated clips by persona and type (including angle-specific dirs)."""
     clips = []
+    clip_types = ["hook", "reaction", "hook-fear", "reaction-fear"]
     for persona in PERSONAS:
-        for clip_type in ["hook", "reaction"]:
+        for clip_type in clip_types:
             clip_dir = ASSETS_DIR / persona / clip_type
             if not clip_dir.exists():
                 continue

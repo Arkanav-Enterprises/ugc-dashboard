@@ -321,6 +321,7 @@ export interface PersonaConfig {
 
 export interface PipelineRunRequest {
   account: string;
+  angle?: string;
   dry_run?: boolean;
   no_upload?: boolean;
   no_reaction?: boolean;

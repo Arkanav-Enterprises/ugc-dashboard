@@ -65,6 +65,7 @@ export default function GenerateContentPage() {
   const [ideaOnly, setIdeaOnly] = useState(false);
   const [hookText, setHookText] = useState("");
   const [reactionText, setReactionText] = useState("");
+  const [angle, setAngle] = useState<"auto" | "discovery" | "fear">("auto");
   const [selectedHookClip, setSelectedHookClip] = useState<string | null>(null);
   const [allClips, setAllClips] = useState<AssetInfo[]>([]);
   const [launching, setLaunching] = useState(false);
@@ -93,20 +94,22 @@ export default function GenerateContentPage() {
   );
   const singlePersona = selectedPersonas.size === 1 ? [...selectedPersonas][0] : null;
 
-  // Hook clips for the selected persona
+  // Hook clips for the selected persona, filtered by angle
+  const hookType = angle === "fear" ? "hook-fear" : "hook";
+  const reactionType = angle === "fear" ? "reaction-fear" : "reaction";
   const hookClips = singlePersona
-    ? allClips.filter((c) => c.persona === singlePersona && c.type === "hook")
+    ? allClips.filter((c) => c.persona === singlePersona && c.type === hookType)
     : [];
 
   // Build reaction lookup: filename → exists
   const reactionSet = new Set(
-    allClips.filter((c) => c.type === "reaction").map((c) => `${c.persona}/${c.name}`)
+    allClips.filter((c) => c.type === reactionType).map((c) => `${c.persona}/${c.name}`)
   );
 
-  // Clear clip selection when persona changes
+  // Clear clip selection when persona or angle changes
   useEffect(() => {
     setSelectedHookClip(null);
-  }, [singlePersona]);
+  }, [singlePersona, angle]);
 
   const toggleAccount = (account: string) => {
     setSelectedAccounts((prev) => {
@@ -157,6 +160,7 @@ export default function GenerateContentPage() {
     const promises = Array.from(selectedAccounts).map((account) =>
       triggerPipelineRun({
         account,
+        angle: angle === "auto" ? undefined : angle,
         dry_run: dryRun,
         no_upload: noUpload,
         no_reaction: noReaction,
@@ -433,6 +437,39 @@ export default function GenerateContentPage() {
                 </button>
               );
             })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Content Angle */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-medium">
+            Content Angle
+            <span className="ml-2 font-normal text-xs text-muted-foreground">
+              {angle === "auto" ? "Auto — 70% discovery, 30% fear" : angle}
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2">
+            {(["auto", "discovery", "fear"] as const).map((a) => (
+              <button
+                key={a}
+                onClick={() => setAngle(a)}
+                className={`px-3 py-1.5 text-xs rounded-md border transition-colors capitalize ${
+                  angle === a
+                    ? a === "fear"
+                      ? "bg-orange-500 text-white border-orange-500"
+                      : a === "discovery"
+                      ? "bg-blue-500 text-white border-blue-500"
+                      : "bg-primary text-primary-foreground border-primary"
+                    : "text-muted-foreground hover:bg-accent"
+                }`}
+              >
+                {a === "auto" ? "Auto (70/30)" : a}
+              </button>
+            ))}
           </div>
         </CardContent>
       </Card>

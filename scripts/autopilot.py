@@ -91,7 +91,7 @@ def load_memory_file(filename: str) -> str:
     return ""
 
 
-def load_context_for_account(account: str) -> str:
+def load_context_for_account(account: str, angle: str = "discovery") -> str:
     """Build the Anthropic system prompt from relevant skill graph nodes + memory."""
     cfg = ACCOUNTS[account]
     persona = cfg["persona"]
@@ -105,11 +105,21 @@ def load_context_for_account(account: str) -> str:
         ("content/content-mix.md",        "Category ratios"),
         ("content/hook-architecture.md",  "Hook formulas"),
         ("content/text-overlays.md",      "Text overlay patterns"),
-        ("content/caption-formulas.md",   "Caption structures"),
         ("content/what-never-works.md",   "Anti-patterns"),
         ("analytics/proven-hooks.md",     "Proven winners"),
-        ("content/hook-bank.md",          "Hook bank — draw from these"),
     ]
+
+    # Angle-specific skill files
+    if angle == "fear":
+        skills += [
+            ("content/fear-hooks.md",     "Fear hook bank — draw from these"),
+            ("content/fear-captions.md",  "Fear caption formulas"),
+        ]
+    else:
+        skills += [
+            ("content/hook-bank.md",          "Hook bank — draw from these"),
+            ("content/caption-formulas.md",   "Caption structures"),
+        ]
 
     parts = []
     for filepath, label in skills:
@@ -132,6 +142,43 @@ def load_context_for_account(account: str) -> str:
 # ---------------------------------------------------------------------------
 # Category selection — weighted random
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Content angle selection — weighted random with streak prevention
+# ---------------------------------------------------------------------------
+
+ANGLE_WEIGHTS = {
+    "discovery": 0.70,
+    "fear": 0.30,
+}
+
+# Clip directory suffixes per angle (discovery uses the original dirs)
+ANGLE_CLIP_DIRS = {
+    "discovery": {"hook": "hook", "reaction": "reaction"},
+    "fear": {"hook": "hook-fear", "reaction": "reaction-fear"},
+}
+
+
+def pick_angle(account: str, usage: dict) -> str:
+    """Weighted random angle selection with streak prevention.
+    Never 3 of the same angle in a row for an account.
+    """
+    # Check recent angles from usage log
+    recent = [e.get("angle", "discovery") for e in usage["entries"] if e["account"] == account][-3:]
+
+    # If last 2 were the same, force the other
+    if len(recent) >= 2 and len(set(recent[-2:])) == 1:
+        return "fear" if recent[-1] == "discovery" else "discovery"
+
+    # Weighted random
+    r = random.random()
+    cumulative = 0.0
+    for angle, weight in ANGLE_WEIGHTS.items():
+        cumulative += weight
+        if r <= cumulative:
+            return angle
+    return "discovery"
+
 
 def pick_category(forced: str | None = None) -> str:
     """Pick a content category. Respects forced override."""
@@ -193,14 +240,15 @@ def list_screen_recordings(app: str) -> list[str]:
     return sorted([f.name for f in folder.iterdir() if f.suffix in (".mp4", ".mov")])
 
 
-def pick_clip_pair(persona: str, usage: dict, account: str) -> tuple[str, str]:
+def pick_clip_pair(persona: str, usage: dict, account: str, angle: str = "discovery") -> tuple[str, str]:
     """Pick a matched hook+reaction pair (same filename = same session).
 
     Returns (hook_filename, reaction_filename). Falls back to independent
-    picks only if no matched pairs exist.
+    picks only if no matched pairs exist. Uses angle-specific directories.
     """
-    hooks = list_assets(persona, "hook")
-    reactions = list_assets(persona, "reaction")
+    dirs = ANGLE_CLIP_DIRS.get(angle, ANGLE_CLIP_DIRS["discovery"])
+    hooks = list_assets(persona, dirs["hook"])
+    reactions = list_assets(persona, dirs["reaction"])
 
     if not hooks:
         return (f"[NO HOOK CLIPS in assets/{persona}/hook/]",
@@ -240,7 +288,26 @@ def pick_screen_recording(app: str, usage: dict, account: str) -> str:
 # Content generation — Anthropic API call
 # ---------------------------------------------------------------------------
 
-def generate_content(account: str, category: str, context: str, dedup_hooks: list[str]) -> dict:
+DISCOVERY_RULES = """HARD RULES (from failure-log — violating these kills performance):
+1. ONLY default clothing/setting. Never reference outdoor, UGC lighting, or studio setups.
+2. Use PHONE PERSONIFICATION hooks ("my phone won't...", "my phone guilt trips me...") — these outperform by 3-8x.
+3. Include SPECIFIC SOCIAL CONTEXT (boyfriend, boss, therapist, sister, co-worker, roommate) — adds a person to create a mini-story.
+4. Include EMOTIONAL ESCALATION (guilt, shame, surprise) — pure feature-description hooks get ignored.
+5. Never repeat the same hook structure used recently on this account. Check the proven-hooks and hook-bank files.
+6. Draw from or riff on the hook-bank.md patterns. Vary the specific details but keep the winning structures."""
+
+FEAR_RULES = """HARD RULES (fear/loss-aversion angle):
+1. ONLY default clothing/setting. Never reference outdoor, UGC lighting, or studio setups.
+2. NO phone personification — this angle is about the USER confronting their own behavior, not the phone's.
+3. Lead with SPECIFIC LOSS STATS (hours, days, years, pickup count). Vague stats kill engagement.
+4. Use period-separated short sentences for pacing ("7 hrs a day. 106 days a year. gone.").
+5. Reaction text must be understated resolution (max 8 words). NOT excited or celebratory.
+6. Caption must be confession/realization style, NOT discovery style. No "check this out" energy.
+7. Draw from or riff on the fear-hooks.md patterns. Vary the specific numbers but keep the winning structures.
+8. Never repeat the same hook structure used recently on this account."""
+
+
+def generate_content(account: str, category: str, context: str, dedup_hooks: list[str], angle: str = "discovery") -> dict:
     """Call Anthropic API to generate text overlays + caption."""
     import anthropic
 
@@ -256,20 +323,17 @@ def generate_content(account: str, category: str, context: str, dedup_hooks: lis
             + "\n".join(f"- {h}" for h in dedup_hooks)
         )
 
+    rules = FEAR_RULES if angle == "fear" else DISCOVERY_RULES
+
     user_prompt = f"""Generate content for: {cfg['handle']}
 Persona: {cfg['persona']}
 App: {cfg['app']}
 Content Category: {category} ({cat_name})
+Content Angle: {angle}
 Date: {date.today().isoformat()}
 {dedup_note}
 
-HARD RULES (from failure-log — violating these kills performance):
-1. ONLY default clothing/setting. Never reference outdoor, UGC lighting, or studio setups.
-2. Use PHONE PERSONIFICATION hooks ("my phone won't...", "my phone guilt trips me...") — these outperform by 3-8x.
-3. Include SPECIFIC SOCIAL CONTEXT (boyfriend, boss, therapist, sister, co-worker, roommate) — adds a person to create a mini-story.
-4. Include EMOTIONAL ESCALATION (guilt, shame, surprise) — pure feature-description hooks get ignored.
-5. Never repeat the same hook structure used recently on this account. Check the proven-hooks and hook-bank files.
-6. Draw from or riff on the hook-bank.md patterns. Vary the specific details but keep the winning structures.
+{rules}
 
 Generate exactly this JSON (no markdown fencing):
 {{
@@ -557,12 +621,21 @@ def run_account(account: str, category_override: str | None = None,
                 dry_run: bool = False, idea_only: bool = False,
                 no_upload: bool = False, no_reaction: bool = False,
                 text_override: dict | None = None,
-                clip_override: dict | None = None):
+                clip_override: dict | None = None,
+                angle_override: str | None = None):
     """Generate content for one account."""
     cfg = ACCOUNTS[account]
     print(f"\n{'='*60}")
     print(f"Generating for {cfg['handle']} ({cfg['persona']}, {cfg['app']})")
     print(f"{'='*60}")
+
+    # 0. Pick content angle
+    usage_for_angle = load_asset_usage()
+    if angle_override and angle_override in ANGLE_WEIGHTS:
+        angle = angle_override
+    else:
+        angle = pick_angle(account, usage_for_angle)
+    print(f"  Angle: {angle}")
 
     # 1. Pick category
     category = pick_category(category_override)
@@ -605,9 +678,9 @@ def run_account(account: str, category_override: str | None = None,
         }
         print(f"  Caption: {content['caption'][:80]}...")
     else:
-        # 2. Load skill graph context
+        # 2. Load skill graph context (angle-aware)
         print("  Loading skill graph...")
-        context = load_context_for_account(account)
+        context = load_context_for_account(account, angle=angle)
 
         # 3. Check dedup (personas with two accounts must not duplicate hooks)
         dedup_hooks = []
@@ -629,7 +702,7 @@ def run_account(account: str, category_override: str | None = None,
         # 4. Generate text via Anthropic
         print("  Calling Anthropic API...")
         try:
-            content = generate_content(account, category, context, dedup_hooks)
+            content = generate_content(account, category, context, dedup_hooks, angle=angle)
         except Exception as e:
             print(f"  ERROR generating content: {e}")
             # Retry once on transient errors (529s)
@@ -637,7 +710,7 @@ def run_account(account: str, category_override: str | None = None,
                 print("  Retrying in 30s (server overload)...")
                 import time
                 time.sleep(30)
-                content = generate_content(account, category, context, dedup_hooks)
+                content = generate_content(account, category, context, dedup_hooks, angle=angle)
             else:
                 raise
 
@@ -655,7 +728,7 @@ def run_account(account: str, category_override: str | None = None,
     if clip_override:
         hook_clip, reaction_clip = clip_override["hook"], clip_override["reaction"]
     else:
-        hook_clip, reaction_clip = pick_clip_pair(cfg["persona"], usage, account)
+        hook_clip, reaction_clip = pick_clip_pair(cfg["persona"], usage, account, angle=angle)
     assets = {
         "hook": hook_clip,
         "reaction": reaction_clip,
@@ -670,6 +743,7 @@ def run_account(account: str, category_override: str | None = None,
         "hook": assets["hook"],
         "reaction": assets["reaction"],
         "screen_rec": assets["screen_rec"],
+        "angle": angle,
     })
     save_asset_usage(usage)
 
@@ -717,6 +791,8 @@ def main():
                         help="Override hook clip filename (skip cycling)")
     parser.add_argument("--reaction-clip",
                         help="Override reaction clip filename (skip cycling)")
+    parser.add_argument("--angle", choices=["discovery", "fear"],
+                        help="Force content angle (default: weighted random 70/30)")
     args = parser.parse_args()
 
     accounts = [args.account] if args.account else list(ACCOUNTS.keys())
@@ -735,7 +811,7 @@ def main():
     for account in accounts:
         run_account(account, args.category, args.dry_run, args.idea_only,
                     args.no_upload, args.no_reaction, text_override=text_override,
-                    clip_override=clip_override)
+                    clip_override=clip_override, angle_override=args.angle)
 
     print(f"\nAll done. {len(accounts)} account(s) processed.")
 

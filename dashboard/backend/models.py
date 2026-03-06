@@ -71,6 +71,7 @@ class PersonaConfig(BaseModel):
 
 class PipelineRunRequest(BaseModel):
     account: str = "aliyah.manifests"
+    angle: str = "auto"  # "discovery", "fear", or "auto"
     dry_run: bool = False
     no_upload: bool = False
     no_reaction: bool = False
