@@ -460,7 +460,7 @@ def send_email(subject: str, body: str):
 
 def assemble_reel(account: str, content: dict, assets: dict,
                   dry_run: bool = False, no_upload: bool = False,
-                  no_reaction: bool = False) -> str | None:
+                  no_reaction: bool = False, angle: str = "discovery") -> str | None:
     """Assemble the final reel via assemble_video.py and optionally upload to Drive.
 
     Returns the reel file path on success, or None on failure.
@@ -469,14 +469,15 @@ def assemble_reel(account: str, content: dict, assets: dict,
     persona = cfg["persona"]
     app = cfg["app"]
 
-    # Resolve full asset paths
-    hook_path = ASSETS_DIR / persona / "hook" / assets["hook"]
+    # Resolve full asset paths (angle-aware directories)
+    dirs = ANGLE_CLIP_DIRS.get(angle, ANGLE_CLIP_DIRS["discovery"])
+    hook_path = ASSETS_DIR / persona / dirs["hook"] / assets["hook"]
     screen_path = ASSETS_DIR / "screen-recordings" / app / assets["screen_rec"]
 
     # Check required assets exist
     required = [("Hook", hook_path), ("Screen", screen_path)]
     if not no_reaction:
-        reaction_path = ASSETS_DIR / persona / "reaction" / assets["reaction"]
+        reaction_path = ASSETS_DIR / persona / dirs["reaction"] / assets["reaction"]
         required.append(("Reaction", reaction_path))
 
     for label, path in required:
@@ -753,7 +754,7 @@ def run_account(account: str, category_override: str | None = None,
     # 8. Assemble reel
     reel_path = assemble_reel(account, content, assets,
                               dry_run=dry_run, no_upload=no_upload,
-                              no_reaction=no_reaction)
+                              no_reaction=no_reaction, angle=angle)
 
     # 9. Deliver
     subject, body = format_email(account, category, content, assets,
