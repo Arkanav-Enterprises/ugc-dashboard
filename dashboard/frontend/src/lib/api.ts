@@ -327,6 +327,8 @@ export interface PipelineRunRequest {
   idea_only?: boolean;
   hook_text?: string;
   reaction_text?: string;
+  hook_clip?: string;
+  reaction_clip?: string;
 }
 
 export interface PipelineRunStatus {

@@ -556,7 +556,8 @@ Suggested type: {content.get('suggested_screen_recording', 'any')}
 def run_account(account: str, category_override: str | None = None,
                 dry_run: bool = False, idea_only: bool = False,
                 no_upload: bool = False, no_reaction: bool = False,
-                text_override: dict | None = None):
+                text_override: dict | None = None,
+                clip_override: dict | None = None):
     """Generate content for one account."""
     cfg = ACCOUNTS[account]
     print(f"\n{'='*60}")
@@ -648,10 +649,13 @@ def run_account(account: str, category_override: str | None = None,
         print(f"  {content['hashtags']}")
         return
 
-    # 5. Select assets (cycling) — hook+reaction as matched pair
+    # 5. Select assets — use override or cycle
     print("  Selecting assets...")
     usage = load_asset_usage()
-    hook_clip, reaction_clip = pick_clip_pair(cfg["persona"], usage, account)
+    if clip_override:
+        hook_clip, reaction_clip = clip_override["hook"], clip_override["reaction"]
+    else:
+        hook_clip, reaction_clip = pick_clip_pair(cfg["persona"], usage, account)
     assets = {
         "hook": hook_clip,
         "reaction": reaction_clip,
@@ -709,6 +713,10 @@ def main():
                         help="Override hook/POV text (skip Claude generation)")
     parser.add_argument("--reaction-text",
                         help="Override reaction text (skip Claude generation)")
+    parser.add_argument("--hook-clip",
+                        help="Override hook clip filename (skip cycling)")
+    parser.add_argument("--reaction-clip",
+                        help="Override reaction clip filename (skip cycling)")
     args = parser.parse_args()
 
     accounts = [args.account] if args.account else list(ACCOUNTS.keys())
@@ -720,9 +728,14 @@ def main():
             "reaction_text": args.reaction_text or "",
         }
 
+    clip_override = None
+    if args.hook_clip:
+        clip_override = {"hook": args.hook_clip, "reaction": args.reaction_clip or args.hook_clip}
+
     for account in accounts:
         run_account(account, args.category, args.dry_run, args.idea_only,
-                    args.no_upload, args.no_reaction, text_override=text_override)
+                    args.no_upload, args.no_reaction, text_override=text_override,
+                    clip_override=clip_override)
 
     print(f"\nAll done. {len(accounts)} account(s) processed.")
 

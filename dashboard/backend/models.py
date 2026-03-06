@@ -77,6 +77,8 @@ class PipelineRunRequest(BaseModel):
     idea_only: bool = False
     hook_text: Optional[str] = None
     reaction_text: Optional[str] = None
+    hook_clip: Optional[str] = None
+    reaction_clip: Optional[str] = None
 
 
 class PipelineRunStatus(BaseModel):

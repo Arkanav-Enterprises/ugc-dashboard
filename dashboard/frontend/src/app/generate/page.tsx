@@ -9,8 +9,11 @@ import {
   triggerLifestyleRun,
   triggerAutoJournalRun,
   getPipelineRunStatus,
+  getClips,
   assetUrl,
+  thumbnailUrl,
   type PipelineRunStatus,
+  type AssetInfo,
 } from "@/lib/api";
 
 interface TrackedRun extends PipelineRunStatus {
@@ -62,6 +65,8 @@ export default function GenerateContentPage() {
   const [ideaOnly, setIdeaOnly] = useState(false);
   const [hookText, setHookText] = useState("");
   const [reactionText, setReactionText] = useState("");
+  const [selectedHookClip, setSelectedHookClip] = useState<string | null>(null);
+  const [allClips, setAllClips] = useState<AssetInfo[]>([]);
   const [launching, setLaunching] = useState(false);
   const [runs, setRuns] = useState<TrackedRun[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -76,6 +81,32 @@ export default function GenerateContentPage() {
   const [ajNoUpload, setAjNoUpload] = useState(false);
   const [ajStyle, setAjStyle] = useState<string>("");
   const [ajCategory, setAjCategory] = useState<string>("");
+
+  // Fetch clips once
+  useEffect(() => {
+    getClips().then(setAllClips);
+  }, []);
+
+  // Derive persona from selected accounts for clip filtering
+  const selectedPersonas = new Set(
+    Array.from(selectedAccounts).map((a) => a.split(".")[0])
+  );
+  const singlePersona = selectedPersonas.size === 1 ? [...selectedPersonas][0] : null;
+
+  // Hook clips for the selected persona
+  const hookClips = singlePersona
+    ? allClips.filter((c) => c.persona === singlePersona && c.type === "hook")
+    : [];
+
+  // Build reaction lookup: filename → exists
+  const reactionSet = new Set(
+    allClips.filter((c) => c.type === "reaction").map((c) => `${c.persona}/${c.name}`)
+  );
+
+  // Clear clip selection when persona changes
+  useEffect(() => {
+    setSelectedHookClip(null);
+  }, [singlePersona]);
 
   const toggleAccount = (account: string) => {
     setSelectedAccounts((prev) => {
@@ -132,6 +163,8 @@ export default function GenerateContentPage() {
         idea_only: ideaOnly,
         hook_text: hookText.trim() || undefined,
         reaction_text: reactionText.trim() || undefined,
+        hook_clip: selectedHookClip || undefined,
+        reaction_clip: noReaction ? undefined : (selectedHookClip || undefined),
       }).then(
         (status): TrackedRun => ({
           ...status,
@@ -435,6 +468,83 @@ export default function GenerateContentPage() {
           </p>
         </CardContent>
       </Card>
+
+      {/* Hook clip selector */}
+      {mode === "content" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">
+              Hook Clip
+              <span className="ml-2 font-normal text-xs text-muted-foreground">
+                {selectedHookClip
+                  ? `Selected: ${selectedHookClip}`
+                  : "Auto — cycles through unused clips"}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!singlePersona ? (
+              <p className="text-xs text-muted-foreground">
+                Select accounts from one persona to pick a clip
+              </p>
+            ) : hookClips.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No hook clips for {singlePersona}
+              </p>
+            ) : (
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {/* Auto option */}
+                <button
+                  onClick={() => setSelectedHookClip(null)}
+                  className={`flex-shrink-0 w-20 rounded-md border-2 p-1.5 transition-colors ${
+                    !selectedHookClip
+                      ? "border-primary bg-primary/10"
+                      : "border-transparent hover:border-muted-foreground/30"
+                  }`}
+                >
+                  <div className="aspect-[9/16] bg-muted rounded flex items-center justify-center">
+                    <span className="text-[10px] text-muted-foreground font-medium">Auto</span>
+                  </div>
+                  <p className="text-[10px] text-center mt-1 text-muted-foreground truncate">Cycle</p>
+                </button>
+                {hookClips.map((clip) => {
+                  const isSelected = selectedHookClip === clip.name;
+                  const hasPair = reactionSet.has(`${clip.persona}/${clip.name}`);
+                  return (
+                    <button
+                      key={clip.path}
+                      onClick={() => setSelectedHookClip(isSelected ? null : clip.name)}
+                      className={`flex-shrink-0 w-20 rounded-md border-2 p-1.5 transition-colors ${
+                        isSelected
+                          ? "border-primary bg-primary/10"
+                          : "border-transparent hover:border-muted-foreground/30"
+                      }`}
+                    >
+                      <div className="aspect-[9/16] bg-muted rounded overflow-hidden relative">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={thumbnailUrl(clip.path)}
+                          alt={clip.name}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                        {!hasPair && (
+                          <div className="absolute bottom-0 inset-x-0 bg-amber-500/90 text-[8px] text-white text-center py-0.5">
+                            no reaction
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-center mt-1 text-muted-foreground truncate">
+                        {clip.name.replace(/\.\w+$/, "")}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Text overrides */}
       <Card>
