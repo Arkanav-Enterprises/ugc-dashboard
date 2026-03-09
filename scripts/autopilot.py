@@ -131,6 +131,7 @@ def load_context_for_account(account: str, angle: str = "discovery") -> str:
     for mem_file, label in [
         ("post-performance.md", "Performance data — what works and what doesn't"),
         ("failure-log.md", "Failure log — rules that must not be broken"),
+        ("revenue-metrics.md", "Revenue metrics — which app converts, what levers matter"),
     ]:
         content = load_memory_file(mem_file)
         if content:

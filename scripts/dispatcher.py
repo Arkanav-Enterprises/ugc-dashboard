@@ -113,6 +113,12 @@ def main() -> None:
     python = str(VENV_PYTHON) if VENV_PYTHON.exists() else sys.executable
     autopilot = str(SCRIPTS_DIR / "autopilot.py")
 
+    # Daily revenue metrics fetch (01:30 UTC — before first autopilot runs)
+    revenue_time = "01:30"
+    if hhmm == revenue_time and not is_locked("revenue_metrics"):
+        acquire_lock("revenue_metrics")
+        fire([python, str(SCRIPTS_DIR / "fetch_revenue_metrics.py")], "revenue_metrics", env)
+
     for account, acfg in config.get("accounts", {}).items():
         if not acfg.get("enabled", True):
             log(f"SKIP: {account} disabled")
