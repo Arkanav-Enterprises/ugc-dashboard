@@ -152,12 +152,33 @@ def process_hook(input_path, output_path, text, font_path, dry_run=False):
     ], dry_run)
 
 
-def process_screen_recording(input_path, output_path, speed, dry_run=False):
-    """Normalize screen recording + speed up."""
+SCREEN_TEXT = {
+    "manifest-lock": "I found this app ManifestLock on the App Store",
+    "journal-lock": "I found this app JournalLock on the App Store",
+}
+
+
+def _infer_screen_text(input_path):
+    """Infer overlay text from screen recording path (e.g. screen-recordings/journal-lock/)."""
+    path_str = str(input_path)
+    for app_slug, text in SCREEN_TEXT.items():
+        if app_slug in path_str:
+            return text
+    return None
+
+
+def process_screen_recording(input_path, output_path, speed, font_path, dry_run=False):
+    """Normalize screen recording + speed up + app name overlay."""
     print(f"  Processing screen recording: {input_path} (speed: {speed}x)")
     scale = build_scale_pad_filter()
     # setpts=PTS/speed speeds up the video
     vf = f"setpts=PTS/{speed},{scale}"
+
+    overlay_text = _infer_screen_text(input_path)
+    if overlay_text:
+        drawtext = build_drawtext_filter(overlay_text, font_path)
+        vf = f"{vf},{drawtext}"
+
     return run_ffmpeg([
         "-i", str(input_path),
         "-vf", vf,
@@ -256,7 +277,7 @@ def assemble(args):
             print("FAILED: Hook clip processing")
             return None
 
-        ok = process_screen_recording(args.screen_recording, screen_out, args.speed, args.dry_run)
+        ok = process_screen_recording(args.screen_recording, screen_out, args.speed, font_path, args.dry_run)
         if not ok:
             print("FAILED: Screen recording processing")
             return None
