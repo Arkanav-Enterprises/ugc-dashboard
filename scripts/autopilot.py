@@ -304,8 +304,9 @@ FEAR_RULES = """HARD RULES (fear/loss-aversion angle):
 4. Use period-separated short sentences for pacing ("7 hrs a day. 106 days a year. gone.").
 5. Reaction text must be understated resolution (max 8 words). NOT excited or celebratory.
 6. Caption must be confession/realization style, NOT discovery style. No "check this out" energy.
-7. Draw from or riff on the fear-hooks.md patterns. Vary the specific numbers but keep the winning structures.
-8. Never repeat the same hook structure used recently on this account."""
+7. Exactly 5 hashtags — no more, no less.
+8. Draw from or riff on the fear-hooks.md patterns. Vary the specific numbers but keep the winning structures.
+9. Never repeat the same hook structure used recently on this account."""
 
 
 def generate_content(account: str, category: str, context: str, dedup_hooks: list[str], angle: str = "discovery") -> dict:
