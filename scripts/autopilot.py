@@ -290,24 +290,29 @@ def pick_screen_recording(app: str, usage: dict, account: str) -> str:
 # Content generation — Anthropic API call
 # ---------------------------------------------------------------------------
 
-DISCOVERY_RULES = """HARD RULES (from failure-log — violating these kills performance):
+DISCOVERY_RULES = """HARD RULES (from 204-reel analysis, 2026-03-15):
 1. ONLY default clothing/setting. Never reference outdoor, UGC lighting, or studio setups.
-2. Use PHONE PERSONIFICATION hooks ("my phone won't...", "my phone guilt trips me...") — these outperform by 3-8x.
-3. Include SPECIFIC SOCIAL CONTEXT (boyfriend, boss, therapist, sister, co-worker, roommate) — adds a person to create a mini-story.
-4. Include EMOTIONAL ESCALATION (guilt, shame, surprise) — pure feature-description hooks get ignored.
-5. Never repeat the same hook structure used recently on this account. Check the proven-hooks and hook-bank files.
-6. Draw from or riff on the hook-bank.md patterns. Vary the specific details but keep the winning structures."""
+2. COMBINE TWO HOOK PATTERNS — single-pattern hooks avg 600 views, dual-pattern avg 1,200+. The best hooks layer two of: question, phone personification, plant metaphor, social context, number shock.
+3. QUESTION HOOKS are #1 (avg 1,316 views) — use "wait why does..." openers. These are underused and outperform everything.
+4. PLANT/GUILT METAPHOR hooks are #2 (avg 1,194 views) — but keep these exclusive to Aliyah persona.
+5. PHONE PERSONIFICATION hooks are #3 (avg 1,177 views) — "my phone has opinions now", "my phone won't let me". Still strong.
+6. NEVER use bare "i did the math on my screen time" — 71 reels use this, avg 150-250 views when used without a twist. MUST pair with contrast ("2,847 vs 3"), social witness ("in front of her"), or physical reaction ("had to sit down").
+7. Include SPECIFIC SOCIAL CONTEXT (therapist, boss, roommate, sister) — the #1 reel (3,057 views) uses therapist context.
+8. Each caption must be UNIQUE across all accounts. Near-duplicate captions correlate with sub-200 views.
+9. Never repeat the same hook structure used recently on this account. Check proven-hooks, content_learnings, and hook-bank files.
+10. Read content_learnings.md for per-persona rules before generating."""
 
-FEAR_RULES = """HARD RULES (fear/loss-aversion angle):
+FEAR_RULES = """HARD RULES (fear/loss-aversion angle, updated from 204-reel analysis):
 1. ONLY default clothing/setting. Never reference outdoor, UGC lighting, or studio setups.
 2. NO phone personification — this angle is about the USER confronting their own behavior, not the phone's.
-3. Lead with SPECIFIC LOSS STATS (hours, days, years, pickup count). Vague stats kill engagement.
-4. Use period-separated short sentences for pacing ("7 hrs a day. 106 days a year. gone.").
-5. Reaction text must be understated resolution (max 8 words). NOT excited or celebratory.
-6. Caption must be confession/realization style, NOT discovery style. No "check this out" energy.
-7. Exactly 5 hashtags — no more, no less.
-8. Draw from or riff on the fear-hooks.md patterns. Vary the specific numbers but keep the winning structures.
-9. Never repeat the same hook structure used recently on this account."""
+3. Lead with SPECIFIC LOSS STATS — "127 pickups" (validated: 1,769 views), "11 years" (1,743 views), "200+ pickups" (2,229 views). These specific numbers are proven. Vague stats kill engagement.
+4. ALWAYS ADD A TWIST to the number — contrast ("2,847 vs 3"), social witness ("someone showed me"), guess-vs-reality ("i guessed 30. it was 127."), or rhythmic list ("scrolling. comparing. numbing."). Bare numbers avg 150 views.
+5. Use period-separated short sentences for pacing ("7 hrs a day. 106 days a year. gone.").
+6. Reaction text must be understated resolution (max 8 words). NOT excited or celebratory.
+7. Caption must be confession/realization style, NOT discovery style. No "check this out" energy.
+8. Exactly 5 hashtags — no more, no less.
+9. Draw from or riff on the fear-hooks.md patterns. Vary the specific numbers but keep the winning structures.
+10. Never repeat the same hook structure used recently on this account. Each caption must be unique across all 7 accounts."""
 
 
 def generate_content(account: str, category: str, context: str, dedup_hooks: list[str], angle: str = "discovery") -> dict:
