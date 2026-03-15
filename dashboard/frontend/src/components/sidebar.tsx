@@ -18,6 +18,7 @@ import {
   BarChart3,
   DollarSign,
   Scissors,
+  Play,
   Menu,
   X,
 } from "lucide-react";
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
   { href: "/scout", label: "Opportunity Scout", icon: Search },
   { href: "/outreach", label: "Outreach", icon: Mail },
   { href: "/revenue", label: "Revenue", icon: DollarSign },
+  { href: "/reel-metrics", label: "Reel Metrics", icon: Play },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/chat", label: "Agent Chat", icon: MessageSquare },
   { href: "/knowledge", label: "Knowledge Base", icon: BookOpen },
