@@ -603,7 +603,7 @@ Reaction (Part 3): {content['reaction_text']}
 
 {content['caption']}
 
-{content['hashtags']}
+{content.get('hashtags', '')}
 
 ━━━ ASSETS ━━━
 
@@ -728,7 +728,7 @@ def run_account(account: str, category_override: str | None = None,
 
     if idea_only:
         print(f"\n  Caption:\n  {content['caption']}")
-        print(f"  {content['hashtags']}")
+        print(f"  {content.get('hashtags', '')}")
         return
 
     # 5. Select assets — use override or cycle
