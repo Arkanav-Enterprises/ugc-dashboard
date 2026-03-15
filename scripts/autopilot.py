@@ -107,6 +107,7 @@ def load_context_for_account(account: str, angle: str = "discovery") -> str:
         ("content/text-overlays.md",      "Text overlay patterns"),
         ("content/what-never-works.md",   "Anti-patterns"),
         ("analytics/proven-hooks.md",     "Proven winners"),
+        ("analytics/content_learnings.md", "Content learnings from performance analysis"),
     ]
 
     # Angle-specific skill files
