@@ -71,10 +71,12 @@ Each platform has specific tactics that affect how we write and format:
 
 ## Performance & Analytics
 
-The feedback loop that makes the system smarter over time:
+Automated feedback loop: scrape → analyze → update skill files → pipeline reads fresh data.
 
-- [[performance-loop]] — how to track what works, the weekly review process, and how performance data feeds back into content decisions.
-- [[proven-hooks]] — a living document of hooks that actually performed. Updated after each review cycle.
+- [[performance-loop]] — the automated feedback loop: scrape reel metrics with CDP, analyze patterns, update skill files. Replaces manual weekly reviews.
+- [[proven-hooks]] — hall of fame hooks ranked by views, pattern performance rankings, dead hooks. Auto-updated by the analysis pipeline.
+- [[content_learnings]] — per-persona rules derived from reel data (e.g., "plant metaphors exclusive to Aliyah", "question hooks avg 1,316 views"). Auto-updated.
+- Dashboard: `/reel-metrics` page visualizes account performance, hook patterns, and top reels.
 
 ## Operations
 

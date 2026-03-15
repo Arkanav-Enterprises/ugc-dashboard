@@ -1,6 +1,6 @@
 # OpenClaw Pipeline Documentation
 
-Last updated: 2026-02-27
+Last updated: 2026-03-15
 
 ---
 
@@ -62,19 +62,86 @@ Daily Pipeline
 
 ---
 
-## Accounts (Priority Order)
+## Accounts (Priority Order — updated 2026-03-15 from 204-reel analysis)
 
 | Account | Persona | App | Priority | Avg Views/Reel |
 |---------|---------|-----|----------|---------------|
-| @aliyah.manifests | Aliyah | Manifest Lock | HIGH | ~800 |
-| @aliyah.journals | Aliyah | Journal Lock | HIGH | ~450 |
-| @riley.manifests | Riley | Manifest Lock | MEDIUM | ~200 (spiky) |
-| @riley.journals | Riley | Journal Lock | MEDIUM | ~200 |
-| @sanyahealing | Sanya | Journal Lock | LOW | ~150-200 |
-| @sophie.unplugs | Sanya | Journal Lock | LOW | ~130-140 |
-| @emillywilks | Emilly | Manifest Lock | LOW | ~150-200 |
+| @aliyah.journals | Aliyah | Journal Lock | HIGH | 1,522 |
+| @aliyah.manifests | Aliyah | Manifest Lock | HIGH | 1,078 |
+| @emillywilks | Emilly | Manifest Lock | MEDIUM | 906 |
+| @riley.manifests | Riley | Manifest Lock | MEDIUM | 844 |
+| @riley.journals | Riley | Journal Lock | MEDIUM | 763 |
+| @sanyahealing | Sanya | Journal Lock | LOW | 746 |
+| @sophie.unplugs | Sanya | Journal Lock | LOW | 491 |
+
+**204 reels total, 190,189 views, 932 avg views/reel.**
 
 Dedup logic ensures personas with two accounts (Aliyah, Riley, Sanya) never use the same hook on the same day.
+
+---
+
+## Performance Feedback Loop
+
+The pipeline learns from its own output. Scraped reel metrics feed back into the generation rules.
+
+```
+LOCAL (Mac, Chrome CDP)                     VPS (content pipeline)
+───────────────────────                     ──────────────────────
+1. scrape_reel_metrics.mjs                  4. autopilot.py
+   │ CDP → instagram.com/{account}/reels/      │ reads updated files at
+   │ Grid: view counts                         │ content generation time
+   │ Detail pages: captions, likes, dates      │
+   ▼                                           ▼
+   output/reel_metrics/                     load_context_for_account()
+     ├── aliyah.manifests_2026-03-15.json     loads proven-hooks.md
+     ├── riley.journals_2026-03-15.json       loads post-performance.md
+     └── ...  (7 files)                       loads content_learnings.md
+   │                                          │
+   ▼                                          ▼
+2. Claude Code (Opus) analyzes             DISCOVERY_RULES + FEAR_RULES
+   │ Pattern analysis across 204 reels       hardcoded rules updated with
+   │ Hook classification + ranking           data-backed insights
+   │ Per-persona rules                       │
+   ▼                                         ▼
+3. Updates 3 files:                        5. Claude Sonnet generates hooks
+   ├── memory/post-performance.md            following fresh data-driven rules
+   ├── skills/analytics/proven-hooks.md      (question hooks #1, combine
+   └── skills/analytics/content_learnings.md  patterns, unique captions, etc.)
+   │
+   ▼
+   git push → VPS git pull → pipeline uses fresh data
+```
+
+### How to Run the Feedback Loop
+
+```bash
+# Step 1: Launch Chrome with CDP (quit Chrome first, then relaunch)
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  --remote-debugging-port=9222 \
+  --user-data-dir="$HOME/Library/Application Support/Google/Chrome" &
+
+# Step 2: Scrape all accounts (~20 min)
+node scripts/scrape_reel_metrics.mjs
+
+# Step 3: Analyze with Claude Code (ask Opus to read the JSONs and update the 3 files)
+# Or use the stats-only fallback:
+python3 scripts/analyze_reel_performance.py --no-llm
+
+# Step 4: Commit and push
+git add memory/post-performance.md skills/analytics/proven-hooks.md skills/analytics/content_learnings.md
+git commit -m "Update performance data from latest scrape"
+git push
+
+# Step 5: Sync VPS
+# On VPS: cd /root/openclaw && git pull && systemctl restart openclaw-api
+```
+
+### Dashboard Visualization
+
+The Reel Metrics page at `/reel-metrics` in the dashboard shows:
+- Account performance table (views, avg views, reels posted)
+- Hook pattern analysis (which patterns perform best)
+- Top reels leaderboard with expandable captions
 
 ---
 
@@ -89,6 +156,8 @@ Dedup logic ensures personas with two accounts (Aliyah, Riley, Sanya) never use 
 │   ├── deliver_email.py          # Email delivery helper
 │   ├── wrapper.sh                # Cron wrapper for routing commands
 │   ├── fetch_revenue_metrics.py   # Daily RevenueCat metrics → memory/revenue-metrics.md
+│   ├── scrape_reel_metrics.mjs    # CDP-based Instagram reel scraper (local only)
+│   ├── analyze_reel_performance.py # Reads metrics, generates performance files
 │   ├── generate_variants.py      # DEPRECATED — was Veo video generation
 │   └── generate_ugc_video.py     # DEPRECATED — was Replicate avatar generation
 ├── assets/
@@ -124,8 +193,9 @@ Dedup logic ensures personas with two accounts (Aliyah, Riley, Sanya) never use 
 │   │   ├── caption-formulas.md   # Caption structures and CTA rules
 │   │   └── what-never-works.md   # Anti-patterns and banned phrases
 │   ├── analytics/
-│   │   ├── proven-hooks.md       # Hooks that performed (living doc)
-│   │   └── performance-loop.md   # Weekly review process
+│   │   ├── proven-hooks.md       # Hooks that performed (auto-updated by analysis)
+│   │   ├── content_learnings.md  # Per-persona rules from reel analysis (auto-updated)
+│   │   └── performance-loop.md   # Feedback loop process
 │   ├── visual/
 │   │   └── asset-cycling.md      # Asset rotation logic
 │   └── platform/
@@ -158,12 +228,15 @@ Text overlays and captions are generated by Claude with skill graph context. The
 
 - **Skill files** — hook bank, content strategy, app knowledge, persona voice
 - **Memory files** — post performance data, failure log rules
-- **Hard rules** injected into the prompt:
-  1. Phone personification hooks required ("my phone won't...", "my phone guilt trips me...")
-  2. Specific social context required (boyfriend, boss, therapist, sister, co-worker)
-  3. Emotional escalation required (guilt, shame, surprise)
-  4. No repeated hook structures on the same account
-  5. Draw from hook-bank.md patterns
+- **Hard rules** injected into the prompt (updated 2026-03-15 from 204-reel analysis):
+  1. Combine two hook patterns — single-pattern avg 600 views, dual-pattern avg 1,200+
+  2. Question hooks are #1 (avg 1,316 views) — "wait why does..." openers
+  3. Plant/guilt metaphor #2 (avg 1,194) — exclusive to Aliyah
+  4. Phone personification #3 (avg 1,177) — still strong
+  5. Never use bare "i did the math" without a twist (71 reels, avg 150-250 views)
+  6. Social context required (therapist, boss, roommate) — #1 reel (3,057 views) uses therapist
+  7. Each caption unique across all 7 accounts
+  8. Read content_learnings.md for per-persona rules
 
 Output format:
 ```json
@@ -285,6 +358,32 @@ python3 scripts/lifestyle_reel.py --no-upload
 
 # Override generated text
 python3 scripts/lifestyle_reel.py --scene-1-text "Hook text" --scene-2-text "Response" --scene-3-text "Payoff"
+```
+
+### scrape_reel_metrics.mjs
+
+```bash
+# Scrape all 7 accounts (requires Chrome with CDP on port 9222)
+node scripts/scrape_reel_metrics.mjs
+
+# Single account
+node scripts/scrape_reel_metrics.mjs --account aliyah.manifests
+
+# Limit reels per account
+node scripts/scrape_reel_metrics.mjs --account riley.journals --max-reels 5
+```
+
+### analyze_reel_performance.py
+
+```bash
+# Full analysis (calls Claude API for pattern insights)
+python3 scripts/analyze_reel_performance.py
+
+# Stats-only mode (no Claude API call)
+python3 scripts/analyze_reel_performance.py --no-llm
+
+# Dry run — print output without writing files
+python3 scripts/analyze_reel_performance.py --dry-run
 ```
 
 ### fetch_revenue_metrics.py
