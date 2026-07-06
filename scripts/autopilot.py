@@ -631,7 +631,8 @@ def run_account(account: str, category_override: str | None = None,
                 no_upload: bool = False, no_reaction: bool = False,
                 text_override: dict | None = None,
                 clip_override: dict | None = None,
-                angle_override: str | None = None):
+                angle_override: str | None = None,
+                no_email: bool = False):
     """Generate content for one account."""
     cfg = ACCOUNTS[account]
     print(f"\n{'='*60}")
@@ -651,32 +652,39 @@ def run_account(account: str, category_override: str | None = None,
     print(f"  Category: {category} ({CATEGORIES[category]['name']})")
 
     if text_override and text_override.get("pov_text"):
-        # Use provided text — generate only caption + hashtags via Claude
-        import anthropic
-
+        # Text provided by the caller. When the caption is also provided
+        # (a Claude Code session writes it), the pipeline makes zero API calls.
         pov = text_override["pov_text"]
         reaction = text_override.get("reaction_text", "")
-        print(f"  Using provided text — generating caption...")
 
-        client = anthropic.Anthropic()
-        caption_resp = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
-            max_tokens=300,
-            system="You write Instagram/TikTok captions for screen time wellness apps. "
-                   "Never mention the app by name. Keep it authentic, first-person, casual.",
-            messages=[{"role": "user", "content": (
-                f"Write a short Instagram caption (2-3 lines) and 5 hashtags for a reel with:\n"
-                f"Hook: \"{pov}\"\n"
-                f"{'Reaction: \"' + reaction + '\"' if reaction else ''}\n"
-                f"Account: {cfg['handle']} (persona: {cfg['persona']}, app: {cfg['app']})\n\n"
-                f"Reply with ONLY this JSON (no markdown fencing):\n"
-                f'{{"caption": "the caption text", "hashtags": "#tag1 #tag2 #tag3 #tag4 #tag5"}}'
-            )}],
-        )
-        try:
-            caption_data = json.loads(caption_resp.content[0].text.strip())
-        except (json.JSONDecodeError, IndexError):
-            caption_data = {"caption": "", "hashtags": ""}
+        if text_override.get("caption") is not None:
+            print("  Using provided text + caption — no API call")
+            caption_data = {
+                "caption": text_override.get("caption", ""),
+                "hashtags": text_override.get("hashtags", ""),
+            }
+        else:
+            import anthropic
+            print("  Using provided text — generating caption via API...")
+            client = anthropic.Anthropic()
+            caption_resp = client.messages.create(
+                model="claude-sonnet-4-5-20250929",
+                max_tokens=300,
+                system="You write Instagram/TikTok captions for screen time wellness apps. "
+                       "Never mention the app by name. Keep it authentic, first-person, casual.",
+                messages=[{"role": "user", "content": (
+                    f"Write a short Instagram caption (2-3 lines) and 5 hashtags for a reel with:\n"
+                    f"Hook: \"{pov}\"\n"
+                    f"{'Reaction: \"' + reaction + '\"' if reaction else ''}\n"
+                    f"Account: {cfg['handle']} (persona: {cfg['persona']}, app: {cfg['app']})\n\n"
+                    f"Reply with ONLY this JSON (no markdown fencing):\n"
+                    f'{{"caption": "the caption text", "hashtags": "#tag1 #tag2 #tag3 #tag4 #tag5"}}'
+                )}],
+            )
+            try:
+                caption_data = json.loads(caption_resp.content[0].text.strip())
+            except (json.JSONDecodeError, IndexError):
+                caption_data = {"caption": "", "hashtags": ""}
 
         content = {
             "pov_text": pov,
@@ -772,6 +780,10 @@ def run_account(account: str, category_override: str | None = None,
         print(f"\n  --- DRY RUN (no email) ---")
         print(f"  Subject: {subject}")
         print(f"\n{body}")
+    elif no_email:
+        print(f"\n  Reel written to disk (--no-email, no delivery):")
+        print(f"  {reel_path}")
+        print(f"\n{body}")
     else:
         send_email(subject, body)
 
@@ -790,12 +802,18 @@ def main():
                         help="Generate text only, skip asset selection and email")
     parser.add_argument("--no-upload", action="store_true",
                         help="Assemble reel but skip Google Drive upload")
+    parser.add_argument("--no-email", action="store_true",
+                        help="Assemble reel but skip email delivery (video file is the output)")
     parser.add_argument("--no-reaction", action="store_true",
                         help="Skip reaction clip in video assembly (hook + screen only)")
     parser.add_argument("--hook-text",
                         help="Override hook/POV text (skip Claude generation)")
     parser.add_argument("--reaction-text",
                         help="Override reaction text (skip Claude generation)")
+    parser.add_argument("--caption",
+                        help="Provide caption text — skips the Anthropic caption call entirely (zero API usage)")
+    parser.add_argument("--hashtags",
+                        help="Provide hashtags string (used with --caption)")
     parser.add_argument("--hook-clip",
                         help="Override hook clip filename (skip cycling)")
     parser.add_argument("--reaction-clip",
@@ -812,6 +830,9 @@ def main():
             "pov_text": args.hook_text or "",
             "reaction_text": args.reaction_text or "",
         }
+        if args.caption is not None:
+            text_override["caption"] = args.caption
+            text_override["hashtags"] = args.hashtags or ""
 
     clip_override = None
     if args.hook_clip:
@@ -820,7 +841,8 @@ def main():
     for account in accounts:
         run_account(account, args.category, args.dry_run, args.idea_only,
                     args.no_upload, args.no_reaction, text_override=text_override,
-                    clip_override=clip_override, angle_override=args.angle)
+                    clip_override=clip_override, angle_override=args.angle,
+                    no_email=args.no_email)
 
     print(f"\nAll done. {len(accounts)} account(s) processed.")
 

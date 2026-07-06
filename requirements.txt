@@ -1,0 +1,11 @@
+# OpenClaw — local content pipeline dependencies
+# Install into the project venv:  .venv/bin/pip install -r requirements.txt
+#
+# Direct deps only (transitive resolved by pip). Pinned to the known-good
+# local set as of 2026-07-06.
+
+anthropic==0.116.0      # dashboard chat + optional caption generation (not needed for --caption runs)
+Pillow==12.3.0          # image/text-overlay processing
+python-dotenv==1.2.1    # .env loading
+requests==2.32.5        # PostHog / RevenueCat / HTTP
+replicate==1.0.7        # video-gen API (legacy pipeline; unused in reuse-clip flow)
