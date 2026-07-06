@@ -1,5 +1,12 @@
 # OpenClaw Pipeline Documentation
 
+> ⚠️ **HISTORICAL — describes the retired VPS automation (cron, systemd, rclone, email,
+> Claude API text-gen).** For how the system runs now — locally, on demand, with a
+> Claude Code session in the loop — see **[LOCAL_PIPELINE.md](LOCAL_PIPELINE.md)**.
+> The sections below remain accurate for deep reference: asset layout, ffmpeg
+> internals, hook rules, and the performance-feedback methodology. Ignore anything
+> about cron schedules, VPS setup, `systemctl`, and email delivery.
+
 Last updated: 2026-03-15
 
 ---
