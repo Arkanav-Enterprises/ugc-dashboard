@@ -112,6 +112,24 @@ Why it works: The tension between wanting to scroll and being forced to be kind 
 
 ---
 
+## Pattern 6: Late Discovery / Surprised Reaction (Aliyah's Signature)
+
+Structure: "i've been [doing X] for [long time] and NOW i find out about this"
+Why it works: Late-discovery + genuine shock. The viewer thinks "wait, what did they just find out?" — curiosity gap + FOMO. Best paired with a wide-eyed surprised-reaction opening frame that resolves into a look at the camera. Proven for Aliyah (dramatic surprise is her voice).
+
+### JournalLock variants
+47. "i've been journaling for 3 years and NOW i find out about this" *(proven — flagship)*
+48. "i've been trying to fix my screen time for years and NOW my phone does it for me"
+49. "3 years of journaling apps and none of them locked my phone until i wrote??"
+50. "how did nobody tell me my phone could make me journal before i doomscroll"
+51. "i've been doing this the hard way for YEARS. found out today it takes 5 minutes."
+
+### ManifestLock variants
+52. "i've been manifesting for years and NOW i find out my phone can hold me to it"
+53. "years of writing affirmations and NOW my phone won't unlock until i say them??"
+
+---
+
 ## DEAD HOOKS — Never Use These
 
 These patterns consistently get 100-130 views. Do not generate anything resembling them:
