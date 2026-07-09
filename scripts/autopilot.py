@@ -468,7 +468,8 @@ def send_email(subject: str, body: str):
 
 def assemble_reel(account: str, content: dict, assets: dict,
                   dry_run: bool = False, no_upload: bool = False,
-                  no_reaction: bool = False, angle: str = "discovery") -> str | None:
+                  no_reaction: bool = False, angle: str = "discovery",
+                  speed: float = 2.5) -> str | None:
     """Assemble the final reel via assemble_video.py and optionally upload to Drive.
 
     Returns the reel file path on success, or None on failure.
@@ -505,6 +506,7 @@ def assemble_reel(account: str, content: dict, assets: dict,
         "--screen-recording", str(screen_path),
         "--hook-text", content["pov_text"],
         "--output", str(output_path),
+        "--speed", str(speed),
     ]
     if not no_reaction:
         cmd += ["--reaction-clip", str(reaction_path),
@@ -632,7 +634,8 @@ def run_account(account: str, category_override: str | None = None,
                 text_override: dict | None = None,
                 clip_override: dict | None = None,
                 angle_override: str | None = None,
-                no_email: bool = False):
+                no_email: bool = False, speed: float = 2.5,
+                screen_override: str | None = None):
     """Generate content for one account."""
     cfg = ACCOUNTS[account]
     print(f"\n{'='*60}")
@@ -749,7 +752,7 @@ def run_account(account: str, category_override: str | None = None,
     assets = {
         "hook": hook_clip,
         "reaction": reaction_clip,
-        "screen_rec": pick_screen_recording(cfg["app"], usage, account),
+        "screen_rec": screen_override or pick_screen_recording(cfg["app"], usage, account),
     }
     print(f"  Hook: {assets['hook']}, Reaction: {assets['reaction']}, Screen: {assets['screen_rec']}")
 
@@ -770,7 +773,7 @@ def run_account(account: str, category_override: str | None = None,
     # 8. Assemble reel
     reel_path = assemble_reel(account, content, assets,
                               dry_run=dry_run, no_upload=no_upload,
-                              no_reaction=no_reaction, angle=angle)
+                              no_reaction=no_reaction, angle=angle, speed=speed)
 
     # 9. Deliver
     subject, body = format_email(account, category, content, assets,
@@ -804,6 +807,8 @@ def main():
                         help="Assemble reel but skip Google Drive upload")
     parser.add_argument("--no-email", action="store_true",
                         help="Assemble reel but skip email delivery (video file is the output)")
+    parser.add_argument("--speed", type=float, default=2.5,
+                        help="Demo/screen-recording speed multiplier (default: 2.5)")
     parser.add_argument("--no-reaction", action="store_true",
                         help="Skip reaction clip in video assembly (hook + screen only)")
     parser.add_argument("--hook-text",
@@ -818,6 +823,8 @@ def main():
                         help="Override hook clip filename (skip cycling)")
     parser.add_argument("--reaction-clip",
                         help="Override reaction clip filename (skip cycling)")
+    parser.add_argument("--screen-recording",
+                        help="Override screen-recording filename from assets/screen-recordings/<app>/ (skip cycling)")
     parser.add_argument("--angle", choices=["discovery", "fear"],
                         help="Force content angle (default: weighted random 70/30)")
     args = parser.parse_args()
@@ -842,7 +849,8 @@ def main():
         run_account(account, args.category, args.dry_run, args.idea_only,
                     args.no_upload, args.no_reaction, text_override=text_override,
                     clip_override=clip_override, angle_override=args.angle,
-                    no_email=args.no_email)
+                    no_email=args.no_email, speed=args.speed,
+                    screen_override=args.screen_recording)
 
     print(f"\nAll done. {len(accounts)} account(s) processed.")
 

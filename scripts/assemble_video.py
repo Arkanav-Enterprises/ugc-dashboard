@@ -8,11 +8,29 @@ All clips normalized to 1080×1920 @ 30fps, audio stripped, uploaded to Google D
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
+
+# Emoji / pictograph ranges — ffmpeg drawtext renders these as tofu (□) with our
+# text font, so strip them from BURNED overlays. Captions (not burned) keep emoji.
+_EMOJI_RE = re.compile(
+    "[\U0001F000-\U0001FAFF"   # pictographs, supplemental, extended-A, symbols
+    "\U00002600-\U000027BF"    # misc symbols + dingbats (✨ ☀ etc.)
+    "\U00002B00-\U00002BFF"    # misc symbols & arrows (stars)
+    "\U0001F1E6-\U0001F1FF"    # regional indicators
+    "\U0000FE00-\U0000FE0F"    # variation selectors
+    "\U0000200D]+"             # zero-width joiner
+)
+
+
+def strip_emoji(text):
+    """Remove emoji that would render as tofu, then tidy leftover whitespace."""
+    text = _EMOJI_RE.sub("", text)
+    return re.sub(r"\s{2,}", " ", text).strip()
 
 # ─── Config ──────────────────────────────────────────
 
@@ -77,6 +95,7 @@ def escape_drawtext(text):
     # ffmpeg drawtext needs : ; \ escaped
     # Replace ASCII apostrophe with Unicode right single quote (visually identical)
     # to avoid breaking ffmpeg's single-quote-delimited filter parser
+    text = strip_emoji(text)
     text = text.replace("'", "\u2019")
     text = text.replace("\\", "\\\\")
     text = text.replace(":", "\\:")
@@ -152,9 +171,12 @@ def process_hook(input_path, output_path, text, font_path, dry_run=False):
     ], dry_run)
 
 
+# Bridge caption burned over the demo. NEVER name the app here — the whole
+# funnel relies on viewers asking "what app?" in the comments (which we DM).
+# Naming it kills that engagement and violates the no-app-name rule.
 SCREEN_TEXT = {
-    "manifest-lock": "I found this app ManifestLock on the App Store",
-    "journal-lock": "I found this app JournalLock on the App Store",
+    "manifest-lock": "found this app on the app store",
+    "journal-lock": "found this app on the app store",
 }
 
 
